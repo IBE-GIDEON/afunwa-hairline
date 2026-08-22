@@ -25,9 +25,8 @@ type Entry = {
 
 type LoadedList = {
   entries: Entry[]
-  /** Folded state names, for filling the state in when a city is picked. */
-  regionSet: Set<string>
-  regionByFolded: Map<string, string>
+  /** Which state each city belongs to, so picking one fills the field above. */
+  stateByCity: Map<string, string>
 }
 
 /**
@@ -52,14 +51,15 @@ function fold(value: string) {
  * them. This is the field almost every buyer touches, and it now opens with no
  * request at all — the same as the country box beside it.
  */
-listCache.set(`${DEFAULT_COUNTRY_CODE}:region`, {
+listCache.set(`${DEFAULT_COUNTRY_CODE}:region:`, {
   entries: NIGERIAN_STATES.map((text) => ({ text, folded: fold(text) })),
-  regionSet: new Set(NIGERIAN_STATES.map(fold)),
-  regionByFolded: new Map(NIGERIAN_STATES.map((name) => [fold(name), name]))
+  stateByCity: new Map()
 })
 
-async function loadList(country: string, kind: "region" | "city") {
-  const key = `${country}:${kind}`
+async function loadList(country: string, kind: "region" | "city", state: string) {
+  // The state is part of the key: Lagos's cities and Kano's are different
+  // lists for the same country, and both are worth keeping.
+  const key = `${country}:${kind}:${kind === "city" ? state.toLowerCase() : ""}`
 
   const cached = listCache.get(key)
   if (cached) return cached
@@ -68,27 +68,24 @@ async function loadList(country: string, kind: "region" | "city") {
   if (existing) return existing
 
   const request = (async () => {
-    const [listResponse, regionResponse] = await Promise.all([
-      fetch(`/api/places?country=${country}&kind=${kind}`),
-      // A city's parent state comes from matching names, so the city list
-      // needs the state list too. It is the smaller of the two by far.
-      kind === "city"
-        ? fetch(`/api/places?country=${country}&kind=region`)
-        : Promise.resolve(null)
-    ])
+    const scoped =
+      kind === "city" && state ? `&state=${encodeURIComponent(state)}` : ""
 
-    const items: string[] = listResponse.ok
-      ? ((await listResponse.json()) as { items?: string[] }).items ?? []
+    const response = await fetch(`/api/places?country=${country}&kind=${kind}${scoped}`)
+    const items: string[] = response.ok
+      ? ((await response.json()) as { items?: string[] }).items ?? []
       : []
 
-    const regions: string[] = regionResponse?.ok
-      ? ((await regionResponse.json()) as { items?: string[] }).items ?? []
-      : []
+    // With a state chosen every city in the list belongs to it, so the parent
+    // is known outright rather than guessed from a matching name.
+    const stateByCity = new Map<string, string>()
+    if (kind === "city" && state) {
+      for (const city of items) stateByCity.set(fold(city), state)
+    }
 
     const loaded: LoadedList = {
       entries: items.map((text) => ({ text, folded: fold(text) })),
-      regionSet: new Set(regions.map(fold)),
-      regionByFolded: new Map(regions.map((name) => [fold(name), name]))
+      stateByCity
     }
 
     listCache.set(key, loaded)
@@ -115,6 +112,7 @@ export function PlaceAutocomplete({
   onSelect,
   country,
   kind,
+  state = "",
   placeholder,
   autoComplete
 }: {
@@ -125,11 +123,16 @@ export function PlaceAutocomplete({
   /** ISO 3166-1 alpha-2 — results are confined to this country. */
   country: string
   kind: "region" | "city"
+  /** For a city field: the state already chosen, which narrows the list. */
+  state?: string
   placeholder?: string
   autoComplete?: string
 }) {
+  const scope = kind === "city" ? state.toLowerCase() : ""
+  const cacheKey = `${country}:${kind}:${scope}`
+
   const [list, setList] = useState<LoadedList | null>(
-    () => listCache.get(`${country}:${kind}`) ?? null
+    () => listCache.get(cacheKey) ?? null
   )
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -138,7 +141,7 @@ export function PlaceAutocomplete({
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const cached = listCache.get(`${country}:${kind}`)
+    const cached = listCache.get(cacheKey)
     if (cached) {
       setList(cached)
       return
@@ -146,7 +149,7 @@ export function PlaceAutocomplete({
 
     let ignore = false
     setList(null)
-    loadList(country, kind)
+    loadList(country, kind, state)
       .then((loaded) => {
         if (!ignore) setList(loaded)
       })
@@ -155,7 +158,7 @@ export function PlaceAutocomplete({
     return () => {
       ignore = true
     }
-  }, [country, kind])
+  }, [cacheKey, country, kind, state])
 
   useEffect(() => {
     setOpen(false)
@@ -178,7 +181,7 @@ export function PlaceAutocomplete({
     const needle = fold(value.trim())
 
     const pickRegion = (text: string) =>
-      kind === "city" ? list.regionByFolded.get(fold(text)) ?? "" : ""
+      kind === "city" ? list.stateByCity.get(fold(text)) ?? "" : ""
 
     if (!needle) {
       // Just opened: show the top of the list so there is something to choose.

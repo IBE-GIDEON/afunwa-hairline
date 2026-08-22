@@ -757,7 +757,15 @@ function AddressForm({
         <Field label={isNigeria ? "State" : "State or province"}>
           <PlaceAutocomplete
             value={address.region}
-            onChange={(next) => set("region", next)}
+            // A city belongs to a state, so changing the state clears a city
+            // that no longer sits in it.
+            onChange={(next) =>
+              onChange({
+                ...address,
+                region: next,
+                city: next === address.region ? address.city : ""
+              })
+            }
             country={address.country}
             kind="region"
             placeholder={isNigeria ? "Start typing a state" : "State or province"}
@@ -770,7 +778,14 @@ function AddressForm({
             onChange={(next) => set("city", next)}
             country={address.country}
             kind="city"
-            placeholder="Start typing a city"
+            // Narrows the list to the state above. Without a state chosen it
+            // offers the whole country, so nobody is stuck behind that field.
+            state={address.region}
+            placeholder={
+              address.region
+                ? `Start typing a city in ${address.region}`
+                : "Start typing a city"
+            }
             // Where a city shares its state's name — Lagos, Kano, Enugu — the
             // suggestion carries it, so picking the city fills the field above.
             onSelect={(suggestion) => {

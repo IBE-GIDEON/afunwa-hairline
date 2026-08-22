@@ -142,41 +142,58 @@ function toCode(countryName) {
   return code
 }
 
-function collect(rows, key) {
-  const out = {}
-  for (const row of rows) {
-    const code = toCode(row.name)
-    if (!code) continue
+// One source for both, because cities have to be grouped by the state they
+// sit in. The flat per-country city list could not do that, so a buyer in
+// Cross River was offered every city in Nigeria.
+const nested = await grab("countries+states+cities.json")
 
-    const values = (row[key] ?? [])
-      .map((entry) => (typeof entry === "string" ? entry : entry?.name))
-      .filter((entry) => typeof entry === "string" && entry.trim())
+const states = {}
+const cities = {}
 
-    const unique = [...new Set(values.map((entry) => entry.trim()))].sort((a, b) =>
-      a.localeCompare(b, "en")
-    )
-    if (unique.length) out[code] = unique
+for (const country of nested) {
+  const code = toCode(country.name)
+  if (!code) continue
+
+  const stateNames = []
+  const byState = {}
+
+  for (const state of country.states ?? []) {
+    const stateName = typeof state?.name === "string" ? state.name.trim() : ""
+    if (!stateName) continue
+    stateNames.push(stateName)
+
+    const cityNames = [
+      ...new Set(
+        (state.cities ?? [])
+          .map((city) => (typeof city?.name === "string" ? city.name.trim() : ""))
+          .filter(Boolean)
+      )
+    ].sort((a, b) => a.localeCompare(b, "en"))
+
+    if (cityNames.length) byState[stateName] = cityNames
   }
-  return out
+
+  if (stateNames.length) {
+    states[code] = [...new Set(stateNames)].sort((a, b) => a.localeCompare(b, "en"))
+  }
+  if (Object.keys(byState).length) cities[code] = byState
 }
-
-const [statesRaw, citiesRaw] = await Promise.all([
-  grab("countries+states.json"),
-  grab("countries+cities.json")
-])
-
-const states = collect(statesRaw, "states")
-const cities = collect(citiesRaw, "cities")
 
 mkdirSync(OUT_DIR, { recursive: true })
 writeFileSync(join(OUT_DIR, "states.json"), JSON.stringify(states), "utf8")
 writeFileSync(join(OUT_DIR, "cities.json"), JSON.stringify(cities), "utf8")
 
-const count = (data) => Object.values(data).reduce((sum, list) => sum + list.length, 0)
+const countStates = Object.values(states).reduce((sum, list) => sum + list.length, 0)
+const countCities = Object.values(cities).reduce(
+  (sum, byState) =>
+    sum + Object.values(byState).reduce((inner, list) => inner + list.length, 0),
+  0
+)
+const ngCities = Object.values(cities.NG ?? {}).reduce((sum, l) => sum + l.length, 0)
 
-console.log(`states: ${count(states)} across ${Object.keys(states).length} countries`)
-console.log(`cities: ${count(cities)} across ${Object.keys(cities).length} countries`)
-console.log(`nigeria: ${states.NG?.length ?? 0} states, ${cities.NG?.length ?? 0} cities`)
+console.log(`states: ${countStates} across ${Object.keys(states).length} countries`)
+console.log(`cities: ${countCities} across ${Object.keys(cities).length} countries`)
+console.log(`nigeria: ${states.NG?.length ?? 0} states, ${ngCities} cities in ${Object.keys(cities.NG ?? {}).length} states`)
 if (unmatched.size) {
   console.log(`\nunmatched country names (${unmatched.size}):`)
   for (const name of unmatched) console.log(`  ${name}`)
