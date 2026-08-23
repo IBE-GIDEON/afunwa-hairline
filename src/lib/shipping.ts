@@ -82,13 +82,40 @@ export function isMethodAvailableFor(
 
 /** The methods offerable to an address in this country, in order. */
 export function shippingMethodsFor(countryCode: string | undefined) {
-  return SHIPPING_METHODS.filter((method) =>
-    isMethodAvailableFor(method.id, countryCode)
+  return SHIPPING_METHODS.filter(
+    (method) => isOffered(method.id) && isMethodAvailableFor(method.id, countryCode)
   )
 }
 
-/** The couriers, which are the ones a seller sets a separate rate for. */
-export const COURIER_METHODS = SHIPPING_METHODS.filter((method) => method.brand)
+/**
+ * Couriers offered on their own account, beside the aggregator.
+ *
+ * Empty on purpose. Terminal Africa already quotes DHL, FedEx, Aramex and the
+ * local couriers and charges whichever is cheapest, so listing them again
+ * would be three more buttons that each need their own contract to mean
+ * anything — and a buyer choosing "DHL" with no DHL account behind it would
+ * simply be quoted the flat rate.
+ *
+ * Put "dhl" back here the day a negotiated DHL rate beats what Terminal
+ * returns. Nothing else needs changing: the buttons, the seller's rate boxes
+ * and the diagnostics all read this list, and the DHL rate call is still
+ * written and still tested.
+ */
+const DIRECT_COURIERS_OFFERED: ShippingMethod[] = []
+
+function isOffered(method: ShippingMethod) {
+  // The aggregator and the two plain options are always offered; a direct
+  // courier only when it has been turned on above.
+  if (method === "pickup" || method === "local" || method === "terminal") {
+    return true
+  }
+  return DIRECT_COURIERS_OFFERED.includes(method)
+}
+
+/** The couriers a seller sets a rate for — the fallback when a quote fails. */
+export const COURIER_METHODS = SHIPPING_METHODS.filter(
+  (method) => method.brand && isOffered(method.id)
+)
 
 export function isShippingMethod(value: unknown): value is ShippingMethod {
   return (

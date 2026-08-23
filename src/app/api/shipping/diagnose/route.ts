@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { hasSupabaseAdmin } from "@/lib/env"
-import { SHIPPING_METHODS, type ShippingMethod } from "@/lib/shipping"
+import { COURIER_METHODS, type ShippingMethod } from "@/lib/shipping"
 import { getRateProvider, quoteCarrier } from "@/lib/shipping-rates"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   const testWeight =
     Number(weighed[0]?.weight_kg ?? 0) || defaultWeight || 0
 
-  const carriers = SHIPPING_METHODS.filter((method) => method.brand)
+  const carriers = COURIER_METHODS
 
   const results = await Promise.all(
     carriers.map(async (method) => {
