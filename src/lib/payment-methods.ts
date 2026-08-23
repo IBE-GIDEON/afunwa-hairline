@@ -13,6 +13,13 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
   // Card first: it is the only one that settles before the parcel moves.
   ...(hasFlutterwave ? (["flutterwave"] as PaymentMethod[]) : []),
   ...(hasPayPal ? (["paypal"] as PaymentMethod[]) : []),
-  "vendor_transfer",
+  // Handing out an account number and confirming payments by hand is the
+  // fallback, not the plan. Flutterwave's own page already takes a bank
+  // transfer and confirms it by webhook, so once it is configured this route
+  // is strictly worse and disappears.
+  //
+  // It stays while Flutterwave is unconfigured, because with Pay on Delivery
+  // off too, removing it outright would leave checkout with no way to pay.
+  ...(hasFlutterwave ? [] : (["vendor_transfer"] as PaymentMethod[])),
   ...(PAY_ON_DELIVERY_ENABLED ? (["pay_on_delivery"] as PaymentMethod[]) : [])
 ]

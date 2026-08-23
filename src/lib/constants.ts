@@ -96,8 +96,9 @@ export const PAYMENT_METHOD_META: Record<
     helper: "Send the money to the account shown, then place your order."
   },
   flutterwave: {
-    label: "Pay with Card",
-    helper: "Card, bank transfer or USSD through Flutterwave."
+    label: "Card or bank transfer",
+    helper:
+      "Pay by card, bank transfer or USSD. Confirmed automatically — no waiting for the seller."
   },
   paypal: {
     label: "PayPal",
