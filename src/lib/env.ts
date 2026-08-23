@@ -27,6 +27,11 @@ export const env = {
   dhlUseTestEnvironment: process.env.DHL_TEST_MODE === "true",
   topshipApiKey: process.env.TOPSHIP_API_KEY ?? "",
   gigApiKey: process.env.GIG_API_KEY ?? "",
+  /** Terminal Africa aggregates the couriers behind one self-serve key. */
+  terminalApiKey: process.env.TERMINAL_API_KEY ?? "",
+  terminalPackagingId: process.env.TERMINAL_PACKAGING_ID ?? "",
+  /** "sandbox" to use their test host; anything else is live. */
+  terminalEnvironment: process.env.TERMINAL_ENVIRONMENT ?? "live",
 
   // PayPal. Server-side only; the client id is not secret but there is no
   // reason to ship it when every call is made from here anyway.

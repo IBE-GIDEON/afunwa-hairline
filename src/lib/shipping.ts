@@ -22,6 +22,12 @@ export const SHIPPING_METHODS = [
     brand: null
   },
   {
+    id: "terminal",
+    label: "Express courier",
+    helper: "Cheapest of DHL, FedEx, Aramex and the local couriers, quoted live.",
+    brand: { background: "#0F172A", foreground: "#FFFFFF" }
+  },
+  {
     id: "topship",
     label: "Topship",
     helper: "Courier, tracked.",
