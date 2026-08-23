@@ -22,6 +22,42 @@ function api() {
   return env.terminalEnvironment === "sandbox" ? SANDBOX_API : LIVE_API
 }
 
+/**
+ * Terminal's own default packaging id, looked up once.
+ *
+ * Their rate call requires a packaging id, and making the seller go and find
+ * one in a dashboard is a step worth removing — the account already has a
+ * default. TERMINAL_PACKAGING_ID still wins if it is set, for a shop that
+ * packs into something of its own.
+ */
+let cachedPackagingId: string | null = null
+
+async function resolvePackagingId(): Promise<string | null> {
+  if (env.terminalPackagingId) return env.terminalPackagingId
+  if (cachedPackagingId) return cachedPackagingId
+
+  try {
+    const response = await fetch(`${api()}/packaging/default/terminal`, {
+      headers: { Authorization: `Bearer ${env.terminalApiKey}` },
+      cache: "no-store"
+    })
+
+    if (!response.ok) return null
+
+    const body = (await response.json()) as {
+      data?: { packaging_id?: unknown }
+    }
+
+    const id = body.data?.packaging_id
+    if (typeof id !== "string" || !id) return null
+
+    cachedPackagingId = id
+    return id
+  } catch {
+    return null
+  }
+}
+
 export const terminalProvider: RateProvider = {
   id: "terminal",
 
@@ -34,11 +70,12 @@ export const terminalProvider: RateProvider = {
       return { ok: false, reason: "Terminal Africa key is not set." }
     }
 
-    if (!env.terminalPackagingId) {
+    const packagingId = await resolvePackagingId()
+    if (!packagingId) {
       return {
         ok: false,
         reason:
-          "TERMINAL_PACKAGING_ID is not set. Copy a packaging id from the Terminal dashboard."
+          "No packaging id. Terminal's default could not be read — set TERMINAL_PACKAGING_ID, or check the key."
       }
     }
 
@@ -58,7 +95,7 @@ export const terminalProvider: RateProvider = {
           parcel: {
             weight: Number(request.weightKg.toFixed(3)),
             weight_unit: "kg",
-            packaging: env.terminalPackagingId,
+            packaging: packagingId,
             description: "Hair products",
             items: [
               {
