@@ -48,6 +48,9 @@ alter table public.orders
 -- ---------------------------------------------------------------------------
 drop policy if exists "Authenticated users can upload store assets" on storage.objects;
 drop policy if exists "Users can update store assets" on storage.objects;
+-- And the ones this file itself creates, so running it twice is not an error.
+drop policy if exists "Users can upload their own store assets" on storage.objects;
+drop policy if exists "Users can update their own store assets" on storage.objects;
 
 create policy "Users can upload their own store assets"
 on storage.objects for insert
