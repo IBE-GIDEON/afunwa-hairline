@@ -479,6 +479,12 @@ export function ProductManagementClient() {
                   photoUrl: form.photoUrls[0],
                   photoUrls: form.photoUrls,
                   inStock: form.inStock
+                }, (dropped) => {
+                  toast.error(
+                    `Saved, but the ${dropped.join(" and ")} could not be stored — ` +
+                      "your database is missing that column. Run the SQL patches in Supabase.",
+                    { duration: 8000 }
+                  )
                 })
                 toast.success(editingProduct ? "Product updated." : "Product added.")
                 setOpen(false)

@@ -2444,7 +2444,11 @@ export async function saveSellerProfile(
   return vendor
 }
 
-export async function saveProduct(input: ProductInput) {
+export async function saveProduct(
+  input: ProductInput,
+  /** Called when the database had no column for a field, so it was not saved. */
+  onFieldsDropped?: (fields: string[]) => void
+) {
   if (!hasSupabase) {
     if (canUseDemoMode) {
       return saveProductDemo(input)
@@ -2513,7 +2517,12 @@ export async function saveProduct(input: ProductInput) {
       : await supabase.from("products").insert(retryPayload).select().single()
   }
 
-  if (droppedColumns.length && typeof console !== "undefined") {
+  if (droppedColumns.length) {
+    // Tell whoever pressed Save, not just the console. A field that vanishes
+    // while the screen says "Product updated" is how someone ends up certain
+    // the weight box is broken when the column simply is not there yet.
+    onFieldsDropped?.(droppedColumns.map(friendlyColumnName))
+
     console.warn(
       `Saved without ${droppedColumns.join(", ")} — the database is missing ` +
         `${droppedColumns.length > 1 ? "those columns" : "that column"}. ` +
@@ -2858,4 +2867,15 @@ export async function loadBuyerDeliveryAddress(userId: string) {
 
   if (error || !data) return null
   return (data as { delivery_address?: unknown }).delivery_address ?? null
+}
+
+/** Column names as a seller would say them. */
+function friendlyColumnName(column: string) {
+  const names: Record<string, string> = {
+    weight_kg: "weight",
+    compare_at_price: "old price",
+    category: "category",
+    photo_urls: "extra photos"
+  }
+  return names[column] ?? column
 }
