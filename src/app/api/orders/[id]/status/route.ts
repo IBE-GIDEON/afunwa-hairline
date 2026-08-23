@@ -51,6 +51,9 @@ export async function PATCH(
     "deliveryAddress"
   )
   const { status, paymentStatus, deliveryAddress } = payload
+  const trackingNumber = payload.trackingNumber?.trim()
+  const trackingCarrier = payload.trackingCarrier?.trim()
+  const trackingUrl = payload.trackingUrl?.trim()
 
   if (status && !ORDER_STATUSES.includes(status)) {
     return NextResponse.json({ error: "Invalid order status" }, { status: 400 })
@@ -167,6 +170,25 @@ export async function PATCH(
     }
 
     updates.payment_status = paymentStatus
+  }
+
+  // Tracking belongs to whoever is carrying the parcel, which is the seller's
+  // business and nobody else's — a buyer must not be able to write their own
+  // tracking number onto an order.
+  if (isSeller) {
+    if (trackingNumber !== undefined) {
+      updates.tracking_number = trackingNumber.slice(0, 120)
+    }
+    if (trackingCarrier !== undefined) {
+      updates.tracking_carrier = trackingCarrier.slice(0, 60)
+    }
+    if (trackingUrl !== undefined) {
+      // Only a real link, so nothing can smuggle javascript: onto a page the
+      // buyer is invited to click.
+      updates.tracking_url = /^https?:\/\//i.test(trackingUrl)
+        ? trackingUrl.slice(0, 500)
+        : ""
+    }
   }
 
   if (Object.keys(updates).length === 0) {

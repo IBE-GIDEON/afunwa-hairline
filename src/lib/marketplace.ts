@@ -1037,6 +1037,9 @@ function mapOrder(row: Record<string, unknown>, vendor?: VendorProfile): OrderDe
     buyerPaymentNote: row.buyer_payment_note
       ? String(row.buyer_payment_note)
       : undefined,
+    trackingNumber: row.tracking_number ? String(row.tracking_number) : undefined,
+    trackingCarrier: row.tracking_carrier ? String(row.tracking_carrier) : undefined,
+    trackingUrl: row.tracking_url ? String(row.tracking_url) : undefined,
     deliveryAddress: String(row.delivery_address ?? ""),
     createdAt: String(row.created_at ?? new Date().toISOString()),
     vendor: nestedVendor

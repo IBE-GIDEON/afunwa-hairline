@@ -119,6 +119,10 @@ export interface Order {
   paymentStatus: PaymentStatus
   paymentReference?: string
   buyerPaymentNote?: string
+  /** Courier tracking, filled in by the seller when they dispatch. */
+  trackingNumber?: string
+  trackingCarrier?: string
+  trackingUrl?: string
   deliveryAddress: string
   createdAt: string
 }
@@ -127,6 +131,9 @@ export interface OrderUpdatePayload {
   status?: OrderStatus
   paymentStatus?: PaymentStatus
   deliveryAddress?: string
+  trackingNumber?: string
+  trackingCarrier?: string
+  trackingUrl?: string
 }
 
 export interface Review {

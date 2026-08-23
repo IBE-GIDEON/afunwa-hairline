@@ -6,10 +6,12 @@ import toast from "react-hot-toast"
 import { FiMessageCircle, FiRefreshCw } from "react-icons/fi"
 
 import { useAuth } from "@/components/providers/auth-provider"
+import { buildTrackingUrl, formatTrackingLabel } from "@/lib/tracking"
 import {
   Badge,
   Button,
   Card,
+  Input,
   PAGE_WIDTH,
   SectionHeading,
   Textarea
@@ -102,6 +104,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState("")
   const [deliveryDraft, setDeliveryDraft] = useState("")
+  const [trackingNumber, setTrackingNumber] = useState("")
+  const [trackingCarrier, setTrackingCarrier] = useState("")
+  const [trackingUrl, setTrackingUrl] = useState("")
 
   // ------------------------------------------------------------------
   // Load the order — only fires once auth has settled
@@ -241,6 +246,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
       status?: OrderStatus
       paymentStatus?: PaymentStatus
       deliveryAddress?: string
+      trackingNumber?: string
+      trackingCarrier?: string
+      trackingUrl?: string
     },
     successMsg: string
   ) => {
@@ -330,6 +338,12 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
   )
 
   // Seller action gates
+  const trackingHref = buildTrackingUrl({
+    trackingNumber: order.trackingNumber,
+    trackingCarrier: order.trackingCarrier,
+    trackingUrl: order.trackingUrl
+  })
+
   const sellerCanConfirm = isSeller && order.status === "pending"
   const sellerCanReject = isSeller && order.status === "pending"
   const sellerCanMarkPaid =
@@ -536,6 +550,35 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         </div>
       </Card>
 
+      {/* ---- Courier tracking, once there is any ---- */}
+      {order.trackingNumber || order.trackingCarrier ? (
+        <Card className="p-4">
+          <p className="text-sm font-semibold text-ink">Tracking</p>
+          <p className="mt-2 select-all font-mono text-sm text-ink">
+            {formatTrackingLabel({
+              trackingNumber: order.trackingNumber,
+              trackingCarrier: order.trackingCarrier
+            })}
+          </p>
+          {trackingHref ? (
+            <a
+              href={trackingHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center justify-center rounded-full bg-chrome px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              Track this parcel
+            </a>
+          ) : (
+            // No link rather than a guessed one: a tracking page that 404s
+            // reads as a lost parcel.
+            <p className="mt-2 text-xs leading-5 text-muted">
+              Copy this number into the courier&apos;s own tracking page.
+            </p>
+          )}
+        </Card>
+      ) : null}
+
       {/* ---- Status timeline (buyers only) ---- */}
       {isBuyer ? (
         <Card className="p-4">
@@ -665,14 +708,44 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
             ) : null}
 
             {sellerCanDispatch ? (
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  applyUpdate({ status: "dispatched" }, "Order marked dispatched.")
-                }
-              >
-                Mark Dispatched
-              </Button>
+              <div className="space-y-3">
+                {/* Asked for here rather than on a separate screen: the moment
+                    you have a tracking number is the moment you dispatch. */}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    placeholder="Courier, e.g. DHL"
+                    value={trackingCarrier}
+                    onChange={(event) => setTrackingCarrier(event.target.value)}
+                  />
+                  <Input
+                    placeholder="Tracking number (optional)"
+                    value={trackingNumber}
+                    onChange={(event) => setTrackingNumber(event.target.value)}
+                  />
+                </div>
+                <Input
+                  placeholder="Tracking link, if the courier gave one (optional)"
+                  value={trackingUrl}
+                  onChange={(event) => setTrackingUrl(event.target.value)}
+                />
+                <Button
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() =>
+                    applyUpdate(
+                      {
+                        status: "dispatched",
+                        trackingNumber: trackingNumber.trim(),
+                        trackingCarrier: trackingCarrier.trim(),
+                        trackingUrl: trackingUrl.trim()
+                      },
+                      "Order marked dispatched."
+                    )
+                  }
+                >
+                  Mark Dispatched
+                </Button>
+              </div>
             ) : null}
 
           </div>
