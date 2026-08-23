@@ -2564,7 +2564,7 @@ export async function deleteProduct(productId: string) {
 }
 
 /** Returns the current session's access token, or null if not signed in. */
-async function getAccessToken(): Promise<string | null> {
+export async function getAccessToken(): Promise<string | null> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) return null
   const {
