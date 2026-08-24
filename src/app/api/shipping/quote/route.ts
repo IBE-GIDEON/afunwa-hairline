@@ -38,6 +38,9 @@ export async function POST(request: Request) {
       region?: unknown
       postalCode?: unknown
       addressLine?: unknown
+      name?: unknown
+      email?: unknown
+      phone?: unknown
     }
   }
 
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, price, weight_kg, vendor_profiles!inner(delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
+      "id, price, weight_kg, vendor_profiles!inner(user_id, store_name, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
     )
     .in("id", [...quantities.keys()])
 
@@ -97,6 +100,15 @@ export async function POST(request: Request) {
             : undefined,
           addressLine: payload.destination?.addressLine
             ? String(payload.destination.addressLine)
+            : undefined,
+          name: payload.destination?.name
+            ? String(payload.destination.name)
+            : undefined,
+          email: payload.destination?.email
+            ? String(payload.destination.email)
+            : undefined,
+          phone: payload.destination?.phone
+            ? String(payload.destination.phone)
             : undefined
         }
       : null

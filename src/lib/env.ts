@@ -27,6 +27,12 @@ export const env = {
   dhlUseTestEnvironment: process.env.DHL_TEST_MODE === "true",
   topshipApiKey: process.env.TOPSHIP_API_KEY ?? "",
   gigApiKey: process.env.GIG_API_KEY ?? "",
+  shipbubbleApiKey: process.env.SHIPBUBBLE_API_KEY ?? "",
+  shipbubbleBaseUrl: process.env.SHIPBUBBLE_API_BASE_URL ?? "",
+  shipbubbleCategoryId: process.env.SHIPBUBBLE_CATEGORY_ID ?? "",
+  shipbubbleSenderName: process.env.SHIPBUBBLE_SENDER_NAME ?? "",
+  shipbubbleSenderEmail: process.env.SHIPBUBBLE_SENDER_EMAIL ?? "",
+  shipbubbleSenderPhone: process.env.SHIPBUBBLE_SENDER_PHONE ?? "",
 
   // PayPal. Server-side only; the client id is not secret but there is no
   // reason to ship it when every call is made from here anyway.

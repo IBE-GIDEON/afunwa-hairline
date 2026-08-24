@@ -377,8 +377,8 @@ export function ProductManagementClient() {
             </label>
           </div>
 
-          {/* Weight is kept for future live courier quotes. Manual delivery
-              still uses the store's delivery fee. */}
+          {/* Shipbubble needs weight for live courier quotes. The store's
+              delivery fee still covers fallback pricing. */}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted">
               Weight in kg — needed for live courier rates

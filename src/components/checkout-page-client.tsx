@@ -24,6 +24,7 @@ import {
 import {
   EMPTY_CHECKOUT_ADDRESS,
   addressSummary,
+  getFullName,
   normalizeAddressPhone,
   composeDeliveryAddress,
   loadSavedAddress,
@@ -162,9 +163,7 @@ export function CheckoutPageClient() {
   // Only for couriers: pickup and local are the seller's own arrangement.
   useEffect(() => {
     const asksLiveRate =
-      shippingMethod !== "pickup" &&
-      shippingMethod !== "local" &&
-      shippingMethod !== "courier"
+      shippingMethod !== "pickup" && shippingMethod !== "local"
     if (!asksLiveRate || !savedAddress || items.length === 0) {
       setCarrierQuote(null)
       return
@@ -183,7 +182,10 @@ export function CheckoutPageClient() {
           countryCode: savedAddress.country,
           city: savedAddress.city,
           region: savedAddress.region,
-          addressLine: savedAddress.address
+          addressLine: savedAddress.address,
+          name: getFullName(savedAddress) || profile?.fullName,
+          email: profile?.email,
+          phone: savedAddress.phone || profile?.phone
         }
       })
     })
@@ -213,7 +215,14 @@ export function CheckoutPageClient() {
     return () => {
       ignore = true
     }
-  }, [shippingMethod, savedAddress, items])
+  }, [
+    shippingMethod,
+    savedAddress,
+    items,
+    profile?.email,
+    profile?.fullName,
+    profile?.phone
+  ])
 
   const vendorTransferReady = Boolean(
     vendorData?.vendor.bankName &&
@@ -305,7 +314,10 @@ export function CheckoutPageClient() {
         countryCode: savedAddress.country,
         city: savedAddress.city,
         region: savedAddress.region,
-        addressLine: savedAddress.address
+        addressLine: savedAddress.address,
+        name: getFullName(savedAddress) || profile.fullName,
+        email: profile.email,
+        phone: savedAddress.phone || profile.phone
       },
       paymentMethod
     }
@@ -405,8 +417,10 @@ export function CheckoutPageClient() {
                     const quoted =
                       carrierQuote?.method === method.id ? carrierQuote.fee : null
                     const fee = quoted ?? flat
+                    const liveCourier =
+                      method.id === "courier" || Boolean(method.brand)
                     const waitingForRate =
-                      quoting && shippingMethod === method.id && Boolean(method.brand)
+                      quoting && shippingMethod === method.id && liveCourier
                     const chosen = shippingMethod === method.id
                     // Local shipping is the one that reads out a country,
                     // because it is one price for the whole of it.
@@ -469,7 +483,7 @@ export function CheckoutPageClient() {
                               shipping.
                             </span>
                           ) : null}
-                          {method.brand && fee === 0 && !waitingForRate ? (
+                          {liveCourier && fee === 0 && !waitingForRate ? (
                             <span className="mt-1 block text-xs leading-5 text-muted">
                               Courier price could not be checked yet.
                             </span>

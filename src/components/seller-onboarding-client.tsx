@@ -272,7 +272,7 @@ export function SellerOnboardingClient() {
                 <div>
                   <p className="text-sm font-semibold text-ink">Pickup address</p>
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    Where couriers collect from when you arrange delivery.
+                    Used for Shipbubble live courier rates and pickup.
                   </p>
                 </div>
                 <Input

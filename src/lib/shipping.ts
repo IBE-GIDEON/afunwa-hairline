@@ -96,9 +96,9 @@ export function shippingMethodsFor(countryCode: string | undefined) {
 /**
  * Couriers offered on their own account, beside the aggregator.
  *
- * Empty on purpose. Manual courier delivery is the one courier option buyers
- * see, so listing direct couriers beside it would add choices that still need
- * separate contracts to mean anything.
+ * Empty on purpose. Courier delivery is the one courier option buyers see, so
+ * listing direct couriers beside it would add choices that still need separate
+ * contracts to mean anything.
  *
  * Put "dhl" back here the day a direct DHL rate is ready. Nothing else needs
  * changing: the buttons and diagnostics both read this list, and the DHL rate
@@ -117,7 +117,7 @@ function isOffered(method: ShippingMethod) {
 
 /** The live courier options shown to buyers and checked by diagnostics. */
 export const COURIER_METHODS = SHIPPING_METHODS.filter(
-  (method) => method.brand && isOffered(method.id)
+  (method) => (method.id === "courier" || method.brand) && isOffered(method.id)
 )
 
 export function isShippingMethod(value: unknown): value is ShippingMethod {

@@ -266,6 +266,9 @@ export interface CheckoutPayload {
     region?: string
     postalCode?: string
     addressLine?: string
+    name?: string
+    email?: string
+    phone?: string
   }
   buyerId: string
   vendorId: string

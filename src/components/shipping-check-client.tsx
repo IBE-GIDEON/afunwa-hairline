@@ -103,8 +103,8 @@ export function ShippingCheckClient() {
 
       <Card className="p-5">
         <p className="text-sm leading-6 text-muted">
-          Live courier APIs are not active for production right now. Checkout
-          uses your store delivery fee for courier delivery.
+          This checks Shipbubble live courier rates to a delivery city. Checkout
+          uses your store delivery fee when Shipbubble cannot quote.
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px_auto]">
@@ -193,8 +193,8 @@ export function ShippingCheckClient() {
                     Manual courier delivery is active
                   </p>
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Buyers see your store delivery fee. No courier API key is
-                    needed to keep shipping live.
+                    Buyers still see your store delivery fee. Add the Shipbubble
+                    key to turn on live courier rates.
                   </p>
                 </div>
               ) : null}

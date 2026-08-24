@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { hasSupabaseAdmin } from "@/lib/env"
+import { env, hasSupabaseAdmin } from "@/lib/env"
 import { COURIER_METHODS, type ShippingMethod } from "@/lib/shipping"
 import { getRateProvider, quoteCarrier } from "@/lib/shipping-rates"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
@@ -52,7 +52,12 @@ export async function GET(request: Request) {
     city: String(vendor.origin_city ?? ""),
     region: vendor.origin_state ? String(vendor.origin_state) : undefined,
     postalCode: vendor.origin_postcode ? String(vendor.origin_postcode) : undefined,
-    addressLine: vendor.origin_address ? String(vendor.origin_address) : undefined
+    addressLine: vendor.origin_address ? String(vendor.origin_address) : undefined,
+    name: vendor.store_name ? String(vendor.store_name) : undefined,
+    email: (user.email ?? env.shipbubbleSenderEmail) || undefined,
+    phone: vendor.whatsapp_number
+      ? String(vendor.whatsapp_number)
+      : env.shipbubbleSenderPhone || undefined
   }
 
   // A real weight if any product has one, so the test is not artificial.
@@ -88,7 +93,13 @@ export async function GET(request: Request) {
         destination: {
           countryCode: toCountry,
           city: toCity,
-          addressLine: `${toCity} delivery address`
+          region: toCity,
+          addressLine: `${toCity}, ${toCountry}`,
+          name: "Shipping check",
+          email: (user.email ?? env.shipbubbleSenderEmail) || undefined,
+          phone: vendor.whatsapp_number
+            ? String(vendor.whatsapp_number)
+            : env.shipbubbleSenderPhone || undefined
         },
         weightKg: testWeight,
         lengthCm: Number(vendor.package_length_cm ?? 30),

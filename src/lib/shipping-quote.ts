@@ -5,6 +5,7 @@ import {
   parseShippingRates,
   type ShippingMethod
 } from "@/lib/shipping"
+import { env } from "@/lib/env"
 import { quoteCarrier, type RateAddress } from "@/lib/shipping-rates"
 
 export interface QuotedShipping {
@@ -17,6 +18,9 @@ export interface QuotedShipping {
 }
 
 interface VendorShippingRow {
+  user_id?: unknown
+  store_name?: unknown
+  whatsapp_number?: unknown
   delivery_fee?: unknown
   free_delivery_over?: unknown
   shipping_rates?: unknown
@@ -73,7 +77,6 @@ export async function quoteShipping({
   if (
     method === "pickup" ||
     method === "local" ||
-    method === "courier" ||
     method === "easyship"
   ) {
     return { fee: flatFee, source: "flat" }
@@ -83,13 +86,20 @@ export async function quoteShipping({
     return { fee: flatFee, source: "flat", reason: "No delivery address yet." }
   }
 
+  const ownerEmail = await getVendorOwnerEmail(supabase, vendor)
+
   const result = await quoteCarrier(method, {
     origin: {
       countryCode: String(vendor?.origin_country ?? "NG"),
       city: String(vendor?.origin_city ?? ""),
       region: vendor?.origin_state ? String(vendor.origin_state) : undefined,
       postalCode: vendor?.origin_postcode ? String(vendor.origin_postcode) : undefined,
-      addressLine: vendor?.origin_address ? String(vendor.origin_address) : undefined
+      addressLine: vendor?.origin_address ? String(vendor.origin_address) : undefined,
+      name: vendor?.store_name ? String(vendor.store_name) : undefined,
+      email: ownerEmail,
+      phone: vendor?.whatsapp_number
+        ? String(vendor.whatsapp_number)
+        : env.shipbubbleSenderPhone || undefined
     },
     destination,
     weightKg,
@@ -108,6 +118,25 @@ export async function quoteShipping({
     source: "carrier",
     serviceName: result.serviceName
   }
+}
+
+async function getVendorOwnerEmail(
+  supabase: SupabaseClient,
+  vendor: VendorShippingRow | null | undefined
+) {
+  if (env.shipbubbleSenderEmail) return env.shipbubbleSenderEmail
+
+  const userId = typeof vendor?.user_id === "string" ? vendor.user_id.trim() : ""
+  if (!userId) return undefined
+
+  const { data } = await supabase
+    .from("users")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle()
+
+  const email = data?.email
+  return typeof email === "string" && email.trim() ? email.trim() : undefined
 }
 
 /**

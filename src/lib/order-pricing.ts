@@ -71,7 +71,7 @@ export async function priceCart(
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
+      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
     )
     .eq("vendor_profiles.is_active", true)
     .in("id", [...requested.keys()])
@@ -185,6 +185,9 @@ export function toRateAddress(
         region?: string
         postalCode?: string
         addressLine?: string
+        name?: string
+        email?: string
+        phone?: string
       }
     | undefined
 ): RateAddress | null {
@@ -197,6 +200,9 @@ export function toRateAddress(
     city,
     region: value?.region?.trim() || undefined,
     postalCode: value?.postalCode?.trim() || undefined,
-    addressLine: value?.addressLine?.trim() || undefined
+    addressLine: value?.addressLine?.trim() || undefined,
+    name: value?.name?.trim() || undefined,
+    email: value?.email?.trim() || undefined,
+    phone: value?.phone?.trim() || undefined
   }
 }

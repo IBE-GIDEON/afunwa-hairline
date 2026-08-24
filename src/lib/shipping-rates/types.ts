@@ -9,6 +9,9 @@ export interface RateAddress {
   region?: string
   postalCode?: string
   addressLine?: string
+  name?: string
+  email?: string
+  phone?: string
 }
 
 export interface RateRequest {
