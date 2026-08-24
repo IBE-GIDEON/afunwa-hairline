@@ -3,7 +3,6 @@ import { env } from "@/lib/env"
 import { type RateAddress, type RateProvider, type RateRequest, type RateResult } from "./types"
 
 const DEFAULT_API_BASE_URL = "https://api.shipbubble.com"
-const DEFAULT_CATEGORY_ID = 98246239
 const TIMEOUT_MS = 9000
 
 type ShipbubblePostResult = {
@@ -16,6 +15,12 @@ type ShipbubblePostResult = {
 type AddressCodeResult =
   | { ok: true; code: number }
   | { ok: false; reason: string }
+
+type CategoryIdResult =
+  | { ok: true; id: number }
+  | { ok: false; reason: string }
+
+let cachedCategoryId: number | null = null
 
 export const shipbubbleProvider: RateProvider = {
   id: "courier",
@@ -38,12 +43,15 @@ export const shipbubbleProvider: RateProvider = {
       if (!sender.ok) return sender
       if (!receiver.ok) return receiver
 
+      const category = await getCategoryId()
+      if (!category.ok) return category
+
       const response = await postShipbubble("/v1/shipping/fetch_rates", {
         sender_address_code: sender.code,
         // Shipbubble's public docs spell this field this way.
         reciever_address_code: receiver.code,
         pickup_date: tomorrowDate(),
-        category_id: getCategoryId(),
+        category_id: category.id,
         service_type: "pickup",
         delivery_instructions: "Please call before pickup or delivery.",
         package_items: [
@@ -210,6 +218,34 @@ async function postShipbubble(
   }
 }
 
+async function getShipbubble(path: string): Promise<ShipbubblePostResult> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+  try {
+    const response = await fetch(`${apiBaseUrl()}${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${env.shipbubbleApiKey}`
+      },
+      signal: controller.signal,
+      cache: "no-store"
+    })
+
+    const text = await response.text().catch(() => "")
+    let data: unknown = null
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      data = null
+    }
+
+    return { ok: response.ok, status: response.status, data, text }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function pickBestRate(data: unknown) {
   const payload = asObject(asObject(data)?.data) ?? asObject(data)
   if (!payload) return null
@@ -276,12 +312,69 @@ function apiBaseUrl() {
   return (env.shipbubbleBaseUrl || DEFAULT_API_BASE_URL).replace(/\/+$/, "")
 }
 
-function getCategoryId() {
+async function getCategoryId(): Promise<CategoryIdResult> {
   const configured = Number(env.shipbubbleCategoryId)
   if (Number.isFinite(configured) && configured > 0) {
-    return Math.floor(configured)
+    return { ok: true, id: Math.floor(configured) }
   }
-  return DEFAULT_CATEGORY_ID
+
+  if (cachedCategoryId) {
+    return { ok: true, id: cachedCategoryId }
+  }
+
+  const response = await getShipbubble("/v1/shipping/labels/categories")
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: describeShipbubbleError("Shipbubble categories", response)
+    }
+  }
+
+  const categoryId = pickCategoryId(response.data)
+  if (!categoryId) {
+    return {
+      ok: false,
+      reason: "Shipbubble returned no usable package category."
+    }
+  }
+
+  cachedCategoryId = categoryId
+  return { ok: true, id: categoryId }
+}
+
+function pickCategoryId(data: unknown) {
+  const payload = asObject(data)
+  const categories = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload?.categories)
+      ? payload.categories
+      : []
+
+  const parsed = categories
+    .map((value) => {
+      const row = asObject(value)
+      if (!row) return null
+
+      const id = readNumber(row.category_id) ?? readNumber(row.id)
+      const label = clean(row.category) || clean(row.name) || clean(row.label)
+      return id && label ? { id, label: label.toLowerCase() } : null
+    })
+    .filter(Boolean) as Array<{ id: number; label: string }>
+
+  for (const preferred of [
+    "fashion",
+    "hair",
+    "wig",
+    "beauty",
+    "cosmetic",
+    "accessor",
+    "jewel"
+  ]) {
+    const match = parsed.find((category) => category.label.includes(preferred))
+    if (match) return match.id
+  }
+
+  return parsed[0]?.id ?? null
 }
 
 function tomorrowDate() {
