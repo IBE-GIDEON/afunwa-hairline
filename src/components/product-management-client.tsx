@@ -377,8 +377,8 @@ export function ProductManagementClient() {
             </label>
           </div>
 
-          {/* Weight is what Easyship prices on. Without it checkout falls
-              back to the store's local delivery fee. */}
+          {/* Weight is kept for future live courier quotes. Manual delivery
+              still uses the store's delivery fee. */}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted">
               Weight in kg — needed for live courier rates

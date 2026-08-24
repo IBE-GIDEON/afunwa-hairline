@@ -20,10 +20,6 @@ export const env = {
 
   // Carrier rate APIs. Server-side only, every one of them — a courier key in
   // the browser bundle is anyone's to spend.
-  /** Easyship aggregates courier rates behind one server-side token. */
-  easyshipAccessToken: process.env.EASYSHIP_ACCESS_TOKEN ?? "",
-  /** "sandbox" to use their test host; anything else is live. */
-  easyshipEnvironment: process.env.EASYSHIP_ENVIRONMENT ?? "live",
   dhlApiKey: process.env.DHL_API_KEY ?? "",
   dhlApiSecret: process.env.DHL_API_SECRET ?? "",
   dhlAccountNumber: process.env.DHL_ACCOUNT_NUMBER ?? "",

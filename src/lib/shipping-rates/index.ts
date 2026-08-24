@@ -1,7 +1,6 @@
 import { env } from "@/lib/env"
 import { type ShippingMethod } from "@/lib/shipping"
 import { dhlProvider } from "./dhl"
-import { easyshipProvider } from "./easyship"
 import { type RateProvider, type RateRequest, type RateResult } from "./types"
 
 export * from "./types"
@@ -49,7 +48,6 @@ const gigProvider: RateProvider = {
 }
 
 const PROVIDERS: Partial<Record<ShippingMethod, RateProvider>> = {
-  easyship: easyshipProvider,
   dhl: dhlProvider,
   topship: topshipProvider,
   gig: gigProvider

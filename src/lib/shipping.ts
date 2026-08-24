@@ -22,10 +22,16 @@ export const SHIPPING_METHODS = [
     brand: null
   },
   {
+    id: "courier",
+    label: "Courier delivery",
+    helper: "Courier delivery arranged by the store.",
+    brand: null
+  },
+  {
     id: "easyship",
     label: "Courier delivery",
-    helper: "Live courier price through Easyship.",
-    brand: { background: "#111827", foreground: "#FFFFFF" }
+    helper: "Legacy courier method.",
+    brand: null
   },
   {
     id: "topship",
@@ -90,20 +96,20 @@ export function shippingMethodsFor(countryCode: string | undefined) {
 /**
  * Couriers offered on their own account, beside the aggregator.
  *
- * Empty on purpose. Easyship is the one courier option buyers see, so listing
- * direct couriers beside it would add choices that still need separate
- * contracts to mean anything.
+ * Empty on purpose. Manual courier delivery is the one courier option buyers
+ * see, so listing direct couriers beside it would add choices that still need
+ * separate contracts to mean anything.
  *
- * Put "dhl" back here the day a negotiated DHL rate beats Easyship. Nothing
- * else needs changing: the buttons and diagnostics both read this list, and
- * the DHL rate call is still written.
+ * Put "dhl" back here the day a direct DHL rate is ready. Nothing else needs
+ * changing: the buttons and diagnostics both read this list, and the DHL rate
+ * call is still written.
  */
 const DIRECT_COURIERS_OFFERED: ShippingMethod[] = []
 
 function isOffered(method: ShippingMethod) {
   // The aggregator and the two plain options are always offered; a direct
   // courier only when it has been turned on above.
-  if (method === "pickup" || method === "local" || method === "easyship") {
+  if (method === "pickup" || method === "local" || method === "courier") {
     return true
   }
   return DIRECT_COURIERS_OFFERED.includes(method)
@@ -122,6 +128,7 @@ export function isShippingMethod(value: unknown): value is ShippingMethod {
 }
 
 export function normalizeShippingMethod(value: unknown): ShippingMethod {
+  if (value === "easyship") return "courier"
   return isShippingMethod(value) ? value : DEFAULT_SHIPPING_METHOD
 }
 
@@ -147,7 +154,9 @@ export function resolveShippingFee(
   rates: ShippingRates | undefined
 ): number {
   if (method === "pickup") return 0
-  if (method === "local") return computeDeliveryFee(itemsTotal, terms)
+  if (method === "local" || method === "courier" || method === "easyship") {
+    return computeDeliveryFee(itemsTotal, terms)
+  }
 
   const rate = Number(rates?.[method] ?? 0)
   if (!Number.isFinite(rate) || rate <= 0) return 0

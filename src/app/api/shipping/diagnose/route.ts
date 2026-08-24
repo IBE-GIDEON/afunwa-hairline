@@ -9,12 +9,12 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server"
 export const dynamic = "force-dynamic"
 
 /**
- * Why Easyship is not quoting.
+ * Why a live carrier is not quoting.
  *
- * Checkout deliberately hides the reason from buyers — "Easyship replied 401" is
+ * Checkout deliberately hides the reason from buyers — "DHL replied 401" is
  * not a shopper's problem, and every failure quietly becomes the flat rate.
  * That is right for them and useless for whoever has to fix it, which is what
- * this is for: the seller's own view of what the live courier quote said.
+ * this is for: the seller's own view of what a live courier quote said.
  *
  * Seller-only. It names configuration state and upstream errors, which is not
  * something to hand to the public.
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
           carrier: method.id,
           configured: false,
           quoted: false,
-          reason: "Easyship token is not set."
+          reason: "Keys are not set for this carrier."
         }
       }
 
@@ -118,12 +118,12 @@ export async function GET(request: Request) {
       productsTotal: products?.length ?? 0,
       storeDefaultWeightKg: defaultWeight || null,
       weightUsedForTestKg: testWeight || null,
-      // The two things that stop Easyship at once, called out plainly.
+      // The two things that stop every carrier at once, called out plainly.
       blocking: [
-        ...(origin.city ? [] : ["No pickup city on the store — Easyship cannot quote."]),
+        ...(origin.city ? [] : ["No pickup city on the store — no carrier can quote."]),
         ...(testWeight > 0
           ? []
-          : ["No weights on any product and no store default — Easyship cannot quote."])
+          : ["No weights on any product and no store default — no carrier can quote."])
       ]
     },
     carriers: results

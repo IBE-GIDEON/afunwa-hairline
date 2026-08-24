@@ -58,9 +58,8 @@ export async function quoteShipping({
   weightKg: number
   destination: RateAddress | null
 }): Promise<QuotedShipping> {
-  const fallbackMethod = method === "easyship" ? "local" : method
   const flatFee = resolveShippingFee(
-    fallbackMethod,
+    method,
     itemsTotal,
     {
       fee: Number(vendor?.delivery_fee ?? 0),
@@ -71,7 +70,12 @@ export async function quoteShipping({
 
   // Pickup and local shipping are the seller's own arrangement — there is no
   // carrier to ask, and asking one would be nonsense.
-  if (method === "pickup" || method === "local") {
+  if (
+    method === "pickup" ||
+    method === "local" ||
+    method === "courier" ||
+    method === "easyship"
+  ) {
     return { fee: flatFee, source: "flat" }
   }
 

@@ -140,7 +140,7 @@ export function CheckoutPageClient() {
   // resolveShippingFee is the same function priceCart runs on the server, so
   // the price on the button is the price charged.
   const flatShippingFee = resolveShippingFee(
-    shippingMethod === "easyship" ? "local" : shippingMethod,
+    shippingMethod,
     liveSubtotal,
     deliveryTerms,
     shippingRates
@@ -161,8 +161,11 @@ export function CheckoutPageClient() {
   // Ask the server for the courier's own price once we know the destination.
   // Only for couriers: pickup and local are the seller's own arrangement.
   useEffect(() => {
-    const isCourier = shippingMethod !== "pickup" && shippingMethod !== "local"
-    if (!isCourier || !savedAddress || items.length === 0) {
+    const asksLiveRate =
+      shippingMethod !== "pickup" &&
+      shippingMethod !== "local" &&
+      shippingMethod !== "courier"
+    if (!asksLiveRate || !savedAddress || items.length === 0) {
       setCarrierQuote(null)
       return
     }
@@ -394,7 +397,7 @@ export function CheckoutPageClient() {
                 <div className="space-y-2">
                   {availableMethods.map((method) => {
                     const flat = resolveShippingFee(
-                      method.id === "easyship" ? "local" : method.id,
+                      method.id,
                       liveSubtotal,
                       deliveryTerms,
                       shippingRates
@@ -449,7 +452,7 @@ export function CheckoutPageClient() {
                             </span>
                             {quoted !== null ? (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-                                Easyship rate
+                                Live rate
                               </span>
                             ) : null}
                           </span>

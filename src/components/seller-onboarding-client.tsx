@@ -239,8 +239,8 @@ export function SellerOnboardingClient() {
               <div>
                 <p className="text-sm font-semibold text-ink">Shipping</p>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  Set your local delivery fallback. Easyship checks courier
-                  delivery when pickup details and item weights are available.
+                  Set the delivery fee buyers see for local and courier
+                  delivery.
                 </p>
               </div>
               <Input
@@ -272,7 +272,7 @@ export function SellerOnboardingClient() {
                 <div>
                   <p className="text-sm font-semibold text-ink">Pickup address</p>
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    Where Easyship couriers collect from.
+                    Where couriers collect from when you arrange delivery.
                   </p>
                 </div>
                 <Input
@@ -295,7 +295,7 @@ export function SellerOnboardingClient() {
                   inputMode="decimal"
                   min={0}
                   step="0.01"
-                  placeholder="Default item weight in kg — used for Easyship quotes"
+                  placeholder="Default item weight in kg"
                   value={defaultItemWeight}
                   onChange={(event) => setDefaultItemWeight(event.target.value)}
                 />
