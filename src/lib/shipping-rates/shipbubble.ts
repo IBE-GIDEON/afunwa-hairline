@@ -20,6 +20,14 @@ type CategoryIdResult =
   | { ok: true; id: number }
   | { ok: false; reason: string }
 
+type ShipbubbleCourierRate = {
+  amount: number
+  currency: string
+  serviceName?: string
+  pickupEtaTime: number
+  deliveryEtaTime: number
+}
+
 let cachedCategoryId: number | null = null
 
 export const shipbubbleProvider: RateProvider = {
@@ -249,28 +257,33 @@ function pickBestRate(data: unknown) {
   const payload = asObject(asObject(data)?.data) ?? asObject(data)
   if (!payload) return null
 
-  const candidates = [
-    readCourier(payload.cheapest_courier),
-    ...((Array.isArray(payload.couriers) ? payload.couriers : [])
-      .map(readCourier)
-      .filter(Boolean) as Array<{
-      amount: number
-      currency: string
-      serviceName?: string
-    }>)
-  ].filter(Boolean) as Array<{
-    amount: number
-    currency: string
-    serviceName?: string
-  }>
+  const recommended = [
+    payload.best_value_courier,
+    payload.best_value,
+    payload.best_courier,
+    payload.recommended_courier,
+    payload.fastest_courier,
+    payload.cheapest_courier
+  ]
+    .map(readCourier)
+    .find(Boolean)
+
+  if (recommended) return recommended
+
+  const candidates = (Array.isArray(payload.couriers) ? payload.couriers : [])
+    .map(readCourier)
+    .filter(Boolean) as ShipbubbleCourierRate[]
 
   if (candidates.length === 0) return null
-  return candidates.sort((left, right) => left.amount - right.amount)[0]
+  return candidates.sort(compareCouriers)[0]
 }
 
 function readCourier(value: unknown) {
   const courier = asObject(value)
   if (!courier) return null
+
+  const serviceType = clean(courier.service_type).toLowerCase()
+  if (serviceType && serviceType !== "pickup") return null
 
   const amount =
     readNumber(courier.rate_card_amount) ??
@@ -292,8 +305,18 @@ function readCourier(value: unknown) {
       clean(courier.rate_card_currency) ||
       clean(courier.currency) ||
       "NGN",
-    serviceName: serviceName || undefined
+    serviceName: serviceName || undefined,
+    pickupEtaTime: readTime(courier.pickup_eta_time),
+    deliveryEtaTime: readTime(courier.delivery_eta_time)
   }
+}
+
+function compareCouriers(left: ShipbubbleCourierRate, right: ShipbubbleCourierRate) {
+  return (
+    left.pickupEtaTime - right.pickupEtaTime ||
+    left.deliveryEtaTime - right.deliveryEtaTime ||
+    left.amount - right.amount
+  )
 }
 
 function describeShipbubbleError(prefix: string, response: ShipbubblePostResult) {
@@ -422,6 +445,14 @@ function clean(value: unknown) {
 function readNumber(value: unknown) {
   const number = Number(value)
   return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function readTime(value: unknown) {
+  const text = clean(value)
+  if (!text) return Number.POSITIVE_INFINITY
+
+  const parsed = Date.parse(text.replace(" ", "T"))
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY
 }
 
 function roundTo(value: number, places: number) {
