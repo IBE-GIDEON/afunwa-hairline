@@ -154,8 +154,13 @@ export function resolveShippingFee(
   rates: ShippingRates | undefined
 ): number {
   if (method === "pickup") return 0
-  if (method === "local" || method === "courier" || method === "easyship") {
+  if (method === "local") {
     return computeDeliveryFee(itemsTotal, terms)
+  }
+  if (method === "courier" || method === "easyship") {
+    const fee = Number(terms.fee ?? 0)
+    if (!Number.isFinite(fee) || fee <= 0) return 0
+    return Math.round(fee * 100) / 100
   }
 
   const rate = Number(rates?.[method] ?? 0)

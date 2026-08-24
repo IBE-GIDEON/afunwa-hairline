@@ -148,6 +148,11 @@ export function CheckoutPageClient() {
   )
   const deliveryFee =
     carrierQuote?.method === shippingMethod ? carrierQuote.fee : flatShippingFee
+  const selectedLiveCourier =
+    shippingMethod !== "pickup" && shippingMethod !== "local"
+  const selectedShippingPending = selectedLiveCourier && quoting
+  const selectedShippingUnavailable =
+    selectedLiveCourier && !quoting && !carrierQuote && deliveryFee <= 0
   const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
   const orderTotal = Math.round((liveSubtotal + deliveryFee) * 100) / 100
 
@@ -230,7 +235,12 @@ export function CheckoutPageClient() {
       vendorData?.vendor.accountNumber
   )
 
-  const canConfirm = Boolean(savedAddress) && deliveryConfirmed && !submitting
+  const canConfirm =
+    Boolean(savedAddress) &&
+    deliveryConfirmed &&
+    !selectedShippingPending &&
+    !selectedShippingUnavailable &&
+    !submitting
 
   if (hydrated && (!vendorId || itemCount === 0)) {
     return (
@@ -421,6 +431,8 @@ export function CheckoutPageClient() {
                       method.id === "courier" || Boolean(method.brand)
                     const waitingForRate =
                       quoting && shippingMethod === method.id && liveCourier
+                    const priceUnavailable =
+                      liveCourier && !waitingForRate && fee <= 0 && quoted === null
                     const chosen = shippingMethod === method.id
                     // Local shipping is the one that reads out a country,
                     // because it is one price for the whole of it.
@@ -432,7 +444,10 @@ export function CheckoutPageClient() {
                         key={method.id}
                         type="button"
                         aria-pressed={chosen}
-                        onClick={() => setShippingMethod(method.id)}
+                        onClick={() => {
+                          setShippingMethod(method.id)
+                          setDeliveryConfirmed(false)
+                        }}
                         className={cn(
                           "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
                           chosen
@@ -455,14 +470,20 @@ export function CheckoutPageClient() {
                             <span
                               className={cn(
                                 "text-sm font-semibold",
-                                fee > 0 ? "text-brand" : "text-success"
+                                priceUnavailable
+                                  ? "text-amber-700"
+                                  : fee > 0
+                                    ? "text-brand"
+                                    : "text-success"
                               )}
                             >
                               {waitingForRate
                                 ? "Checking rate..."
-                                : fee > 0
-                                  ? money(fee).text
-                                  : "Free"}
+                                : priceUnavailable
+                                  ? "Price unavailable"
+                                  : fee > 0
+                                    ? money(fee).text
+                                    : "Free"}
                             </span>
                             {quoted !== null ? (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
@@ -483,9 +504,9 @@ export function CheckoutPageClient() {
                               shipping.
                             </span>
                           ) : null}
-                          {liveCourier && fee === 0 && !waitingForRate ? (
+                          {priceUnavailable ? (
                             <span className="mt-1 block text-xs leading-5 text-muted">
-                              Courier price could not be checked yet.
+                              Courier price is not ready yet. Try again shortly.
                             </span>
                           ) : null}
                         </span>
@@ -498,6 +519,9 @@ export function CheckoutPageClient() {
 
                 <div className="flex justify-end">
                   <Button
+                    disabled={
+                      selectedShippingPending || selectedShippingUnavailable
+                    }
                     onClick={() => {
                       setDeliveryConfirmed(true)
                       setStep(3)
@@ -610,6 +634,8 @@ export function CheckoutPageClient() {
           itemCount={itemCount}
           itemsTotal={liveSubtotal}
           deliveryFee={deliveryFee}
+          shippingPending={selectedShippingPending}
+          shippingUnavailable={selectedShippingUnavailable}
           total={orderTotal}
           money={money}
           canConfirm={canConfirm}
@@ -872,6 +898,8 @@ function OrderSummary({
   itemCount,
   itemsTotal,
   deliveryFee,
+  shippingPending,
+  shippingUnavailable,
   total,
   money,
   canConfirm,
@@ -881,6 +909,8 @@ function OrderSummary({
   itemCount: number
   itemsTotal: number
   deliveryFee: number
+  shippingPending: boolean
+  shippingUnavailable: boolean
   total: number
   money: (amount: number) => { text: string }
   canConfirm: boolean
@@ -901,8 +931,23 @@ function OrderSummary({
 
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted">Shipping fee</span>
-          <span className={deliveryFee > 0 ? "font-semibold text-ink" : "font-semibold text-success"}>
-            {deliveryFee > 0 ? money(deliveryFee).text : "Free"}
+          <span
+            className={cn(
+              "font-semibold",
+              shippingUnavailable
+                ? "text-amber-700"
+                : deliveryFee > 0
+                  ? "text-ink"
+                  : "text-success"
+            )}
+          >
+            {shippingPending
+              ? "Checking"
+              : shippingUnavailable
+                ? "Unavailable"
+                : deliveryFee > 0
+                  ? money(deliveryFee).text
+                  : "Free"}
           </span>
         </div>
 

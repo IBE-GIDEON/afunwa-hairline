@@ -162,6 +162,18 @@ export async function priceCart(
 
   const deliveryFee = shipping.fee
 
+  if (
+    shippingMethod !== "pickup" &&
+    shippingMethod !== "local" &&
+    deliveryFee <= 0
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Courier delivery is not priced yet. Choose another shipping method or try again."
+    }
+  }
+
   const totalAmount = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
   return {
