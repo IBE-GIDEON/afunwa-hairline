@@ -3,7 +3,7 @@ import { env } from "@/lib/env"
 import { type RateAddress, type RateProvider, type RateRequest, type RateResult } from "./types"
 
 const DEFAULT_API_BASE_URL = "https://api.shipbubble.com"
-const TIMEOUT_MS = 9000
+const TIMEOUT_MS = 15000
 
 type ShipbubblePostResult = {
   ok: boolean
@@ -35,15 +35,14 @@ export const shipbubbleProvider: RateProvider = {
     }
 
     try {
-      const [sender, receiver] = await Promise.all([
+      const [sender, receiver, category] = await Promise.all([
         validateAddress(request.origin, "sender"),
-        validateAddress(request.destination, "receiver")
+        validateAddress(request.destination, "receiver"),
+        getCategoryId()
       ])
 
       if (!sender.ok) return sender
       if (!receiver.ok) return receiver
-
-      const category = await getCategoryId()
       if (!category.ok) return category
 
       const response = await postShipbubble("/v1/shipping/fetch_rates", {
