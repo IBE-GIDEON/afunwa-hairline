@@ -377,11 +377,11 @@ export function ProductManagementClient() {
             </label>
           </div>
 
-          {/* Shipbubble needs weight for live courier quotes. The store's
-              delivery fee still covers fallback pricing. */}
+          {/* Product weight makes Shipbubble rates more accurate. A launch
+              default keeps older listings from blocking live quotes. */}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted">
-              Weight in kg — needed for live courier rates
+              Weight in kg — improves live courier rates
             </span>
             <Input
               type="number"

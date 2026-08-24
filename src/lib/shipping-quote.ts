@@ -20,6 +20,7 @@ export interface QuotedShipping {
 interface VendorShippingRow {
   user_id?: unknown
   store_name?: unknown
+  city?: unknown
   whatsapp_number?: unknown
   delivery_fee?: unknown
   free_delivery_over?: unknown
@@ -87,15 +88,20 @@ export async function quoteShipping({
   }
 
   const ownerEmail = await getVendorOwnerEmail(supabase, vendor)
+  const originCountry = cleanString(vendor?.origin_country) || "NG"
+  const originCity =
+    cleanString(vendor?.origin_city) || cleanString(vendor?.city)
+  const originAddress =
+    cleanString(vendor?.origin_address) || originCity
 
   const result = await quoteCarrier(method, {
     origin: {
-      countryCode: String(vendor?.origin_country ?? "NG"),
-      city: String(vendor?.origin_city ?? ""),
-      region: vendor?.origin_state ? String(vendor.origin_state) : undefined,
+      countryCode: originCountry,
+      city: originCity,
+      region: cleanString(vendor?.origin_state) || undefined,
       postalCode: vendor?.origin_postcode ? String(vendor.origin_postcode) : undefined,
-      addressLine: vendor?.origin_address ? String(vendor.origin_address) : undefined,
-      name: vendor?.store_name ? String(vendor.store_name) : undefined,
+      addressLine: originAddress || undefined,
+      name: cleanString(vendor?.store_name) || undefined,
       email: ownerEmail,
       phone: vendor?.whatsapp_number
         ? String(vendor.whatsapp_number)
@@ -110,6 +116,10 @@ export async function quoteShipping({
   })
 
   if (!result.ok) {
+    console.warn("Shipping quote fell back", {
+      method,
+      reason: result.reason
+    })
     return { fee: flatFee, source: "flat", reason: result.reason }
   }
 
@@ -142,16 +152,20 @@ async function getVendorOwnerEmail(
 /**
  * What the parcel weighs.
  *
- * Each line uses its own weight, falling back to the store's default for
- * anything not yet measured. Zero means nothing has a weight, which is the
- * signal not to call a carrier at all rather than to send them a guess.
+ * Each line uses its own weight, then the store's default, then a conservative
+ * launch fallback. A slightly high estimate is better than silently disabling
+ * live courier rates for old products.
  */
 export function totalCartWeight(
   rows: Array<{ id: string; weight_kg?: unknown }>,
   quantities: Map<string, number>,
   defaultItemWeightKg: unknown
 ): number {
-  const fallback = Number(defaultItemWeightKg ?? 0)
+  const configuredFallback = Number(defaultItemWeightKg ?? 0)
+  const fallback =
+    Number.isFinite(configuredFallback) && configuredFallback > 0
+      ? configuredFallback
+      : getDefaultItemWeightKg()
 
   let total = 0
   for (const row of rows) {
@@ -161,4 +175,13 @@ export function totalCartWeight(
   }
 
   return Math.round(total * 1000) / 1000
+}
+
+function getDefaultItemWeightKg() {
+  const value = Number(env.shippingDefaultItemWeightKg)
+  return Number.isFinite(value) && value > 0 ? value : 1
+}
+
+function cleanString(value: unknown) {
+  return typeof value === "string" ? value.trim() : ""
 }

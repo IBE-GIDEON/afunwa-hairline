@@ -46,13 +46,19 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const toCity = (searchParams.get("to") ?? "Lagos").trim()
   const toCountry = (searchParams.get("country") ?? "NG").trim().toUpperCase()
+  const toAddress = (
+    searchParams.get("address") ??
+    `${toCity}, ${toCountry}`
+  ).trim()
 
   const origin = {
     countryCode: String(vendor.origin_country ?? "NG"),
-    city: String(vendor.origin_city ?? ""),
+    city: String(vendor.origin_city ?? vendor.city ?? ""),
     region: vendor.origin_state ? String(vendor.origin_state) : undefined,
     postalCode: vendor.origin_postcode ? String(vendor.origin_postcode) : undefined,
-    addressLine: vendor.origin_address ? String(vendor.origin_address) : undefined,
+    addressLine: vendor.origin_address
+      ? String(vendor.origin_address)
+      : String(vendor.city ?? ""),
     name: vendor.store_name ? String(vendor.store_name) : undefined,
     email: (user.email ?? env.shipbubbleSenderEmail) || undefined,
     phone: vendor.whatsapp_number
@@ -69,8 +75,11 @@ export async function GET(request: Request) {
 
   const weighed = (products ?? []).filter((row) => Number(row.weight_kg) > 0)
   const defaultWeight = Number(vendor.default_item_weight_kg ?? 0)
+  const fallbackWeight = Number(env.shippingDefaultItemWeightKg)
   const testWeight =
-    Number(weighed[0]?.weight_kg ?? 0) || defaultWeight || 0
+    Number(weighed[0]?.weight_kg ?? 0) ||
+    defaultWeight ||
+    (Number.isFinite(fallbackWeight) && fallbackWeight > 0 ? fallbackWeight : 1)
 
   const carriers = COURIER_METHODS
 
@@ -94,7 +103,7 @@ export async function GET(request: Request) {
           countryCode: toCountry,
           city: toCity,
           region: toCity,
-          addressLine: `${toCity}, ${toCountry}`,
+          addressLine: toAddress,
           name: "Shipping check",
           email: (user.email ?? env.shipbubbleSenderEmail) || undefined,
           phone: vendor.whatsapp_number
@@ -121,7 +130,7 @@ export async function GET(request: Request) {
   )
 
   return NextResponse.json({
-    testedRoute: `${origin.city || "(no pickup city)"} → ${toCity}, ${toCountry}`,
+    testedRoute: `${origin.city || "(no pickup city)"} -> ${toAddress}`,
     readiness: {
       pickupCitySet: Boolean(origin.city),
       pickupCountry: origin.countryCode,

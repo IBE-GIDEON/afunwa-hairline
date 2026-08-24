@@ -45,6 +45,7 @@ export function ShippingCheckClient() {
   const { profile, vendorProfile } = useAuth()
   const [city, setCity] = useState("Lagos")
   const [country, setCountry] = useState("NG")
+  const [address, setAddress] = useState("57 Marina, Lagos, Nigeria")
   const [result, setResult] = useState<Diagnosis | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -56,7 +57,7 @@ export function ShippingCheckClient() {
     try {
       const token = await getAccessToken()
       const response = await fetch(
-        `/api/shipping/diagnose?to=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}`,
+        `/api/shipping/diagnose?to=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&address=${encodeURIComponent(address)}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       )
 
@@ -107,7 +108,7 @@ export function ShippingCheckClient() {
           uses your store delivery fee when Shipbubble cannot quote.
         </p>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px_auto]">
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px]">
           <Input
             value={city}
             placeholder="Deliver to city"
@@ -119,9 +120,17 @@ export function ShippingCheckClient() {
             maxLength={2}
             onChange={(event) => setCountry(event.target.value.toUpperCase())}
           />
-          <Button onClick={run} disabled={busy}>
-            {busy ? "Checking..." : "Run check"}
-          </Button>
+          <Input
+            className="sm:col-span-2"
+            value={address}
+            placeholder="Full delivery address"
+            onChange={(event) => setAddress(event.target.value)}
+          />
+          <div className="sm:col-span-2 sm:flex sm:justify-end">
+            <Button onClick={run} disabled={busy}>
+              {busy ? "Checking..." : "Run check"}
+            </Button>
+          </div>
         </div>
 
         {error ? (

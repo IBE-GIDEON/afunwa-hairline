@@ -265,9 +265,8 @@ export function SellerOnboardingClient() {
                 onChange={(event) => setDeliveryNote(event.target.value)}
               />
 
-              {/* A courier cannot price a parcel without knowing where it
-                  leaves from and what it weighs. Missing either and checkout
-                  quietly uses the flat rate below instead. */}
+              {/* Pickup details and weights make Shipbubble quotes more
+                  accurate. The store city and launch weight cover old stores. */}
               <div className="space-y-3 border-t border-border pt-3">
                 <div>
                   <p className="text-sm font-semibold text-ink">Pickup address</p>

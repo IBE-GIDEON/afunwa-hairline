@@ -33,6 +33,7 @@ export const env = {
   shipbubbleSenderName: process.env.SHIPBUBBLE_SENDER_NAME ?? "",
   shipbubbleSenderEmail: process.env.SHIPBUBBLE_SENDER_EMAIL ?? "",
   shipbubbleSenderPhone: process.env.SHIPBUBBLE_SENDER_PHONE ?? "",
+  shippingDefaultItemWeightKg: process.env.SHIPPING_DEFAULT_ITEM_WEIGHT_KG ?? "1",
 
   // PayPal. Server-side only; the client id is not secret but there is no
   // reason to ship it when every call is made from here anyway.
