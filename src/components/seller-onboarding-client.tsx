@@ -24,7 +24,6 @@ import {
 } from "@/lib/product-categories"
 import { uploadImage, uploadImages } from "@/lib/image"
 import { saveProduct, saveSellerProfile } from "@/lib/marketplace"
-import { COURIER_METHODS } from "@/lib/shipping"
 import { type VendorCategory } from "@/lib/types"
 
 const MAX_PRODUCT_IMAGES = 6
@@ -61,23 +60,11 @@ export function SellerOnboardingClient() {
     vendorProfile?.freeDeliveryOver ? String(vendorProfile.freeDeliveryOver) : ""
   )
   const [deliveryNote, setDeliveryNote] = useState(vendorProfile?.deliveryNote ?? "")
-  // One entry per courier, as typed. Blank means "no rate set", which shows at
-  // checkout as the seller confirming the cost rather than as free.
   const [originCity, setOriginCity] = useState(vendorProfile?.originCity ?? "")
   const [originState, setOriginState] = useState(vendorProfile?.originState ?? "")
   const [originAddress, setOriginAddress] = useState(vendorProfile?.originAddress ?? "")
   const [defaultItemWeight, setDefaultItemWeight] = useState(
     vendorProfile?.defaultItemWeightKg ? String(vendorProfile.defaultItemWeightKg) : ""
-  )
-  const [courierRates, setCourierRates] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      COURIER_METHODS.map((method) => [
-        method.id,
-        vendorProfile?.shippingRates?.[method.id]
-          ? String(vendorProfile.shippingRates[method.id])
-          : ""
-      ])
-    )
   )
   const [productName, setProductName] = useState("")
   const [productCategory, setProductCategory] = useState<ProductCategory>(
@@ -252,7 +239,8 @@ export function SellerOnboardingClient() {
               <div>
                 <p className="text-sm font-semibold text-ink">Shipping</p>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  Leave the fee blank or zero and shipping shows as free.
+                  Set your local delivery fallback. Easyship checks courier
+                  delivery when pickup details and item weights are available.
                 </p>
               </div>
               <Input
@@ -284,7 +272,7 @@ export function SellerOnboardingClient() {
                 <div>
                   <p className="text-sm font-semibold text-ink">Pickup address</p>
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    Where couriers collect from, and what they quote against.
+                    Where Easyship couriers collect from.
                   </p>
                 </div>
                 <Input
@@ -307,36 +295,10 @@ export function SellerOnboardingClient() {
                   inputMode="decimal"
                   min={0}
                   step="0.01"
-                  placeholder="Default item weight in kg — used when a product has none"
+                  placeholder="Default item weight in kg — used for Easyship quotes"
                   value={defaultItemWeight}
                   onChange={(event) => setDefaultItemWeight(event.target.value)}
                 />
-              </div>
-
-              <div className="space-y-3 border-t border-border pt-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Couriers</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Leave one blank and checkout tells the buyer you will confirm
-                    that courier&apos;s cost. Customer pickup is always free.
-                  </p>
-                </div>
-                {COURIER_METHODS.map((method) => (
-                  <Input
-                    key={method.id}
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    placeholder={`${method.label} rate (₦)`}
-                    value={courierRates[method.id] ?? ""}
-                    onChange={(event) =>
-                      setCourierRates((current) => ({
-                        ...current,
-                        [method.id]: event.target.value
-                      }))
-                    }
-                  />
-                ))}
               </div>
             </div>
           </div>
@@ -541,11 +503,7 @@ export function SellerOnboardingClient() {
                     originState: originState.trim() || undefined,
                     defaultItemWeightKg:
                       Number(defaultItemWeight) > 0 ? Number(defaultItemWeight) : undefined,
-                    shippingRates: Object.fromEntries(
-                      Object.entries(courierRates)
-                        .map(([id, raw]) => [id, Number(raw)] as const)
-                        .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
-                    )
+                    shippingRates: {}
                   })
 
                   if (savingProduct) {

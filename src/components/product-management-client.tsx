@@ -377,8 +377,8 @@ export function ProductManagementClient() {
             </label>
           </div>
 
-          {/* Weight is what a courier prices on. Without it DHL and the rest
-              cannot quote at all, and checkout falls back to the flat rate. */}
+          {/* Weight is what Easyship prices on. Without it checkout falls
+              back to the store's local delivery fee. */}
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-muted">
               Weight in kg — needed for live courier rates

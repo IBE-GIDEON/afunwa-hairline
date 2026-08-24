@@ -179,7 +179,13 @@ export async function priceCart(
 /** Turns the payload's destination into a carrier address, or null. */
 export function toRateAddress(
   value:
-    | { countryCode?: string; city?: string; region?: string; postalCode?: string }
+    | {
+        countryCode?: string
+        city?: string
+        region?: string
+        postalCode?: string
+        addressLine?: string
+      }
     | undefined
 ): RateAddress | null {
   const countryCode = String(value?.countryCode ?? "").trim().toUpperCase()
@@ -190,6 +196,7 @@ export function toRateAddress(
     countryCode,
     city,
     region: value?.region?.trim() || undefined,
-    postalCode: value?.postalCode?.trim() || undefined
+    postalCode: value?.postalCode?.trim() || undefined,
+    addressLine: value?.addressLine?.trim() || undefined
   }
 }

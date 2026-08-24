@@ -83,7 +83,7 @@ export function ShippingCheckClient() {
         <Card className="p-5">
           <p className="text-lg font-semibold text-ink">Sellers only</p>
           <p className="mt-2 text-sm leading-6 text-muted">
-            This checks your own store's courier setup, so it needs the account
+            This checks your own store's Easyship setup, so it needs the account
             that owns the store.
           </p>
           <Link
@@ -103,8 +103,8 @@ export function ShippingCheckClient() {
 
       <Card className="p-5">
         <p className="text-sm leading-6 text-muted">
-          Asks each courier for a real price to a test address and shows exactly
-          what came back. Run this after adding a carrier key.
+          Asks Easyship for a real courier price to a test address and shows
+          exactly what came back. Run this after adding the Easyship token.
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px_auto]">
@@ -137,7 +137,7 @@ export function ShippingCheckClient() {
             <Card className="border-amber-300 bg-amber-50 p-5">
               <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
                 <FiAlertTriangle aria-hidden="true" />
-                Fix these first — they stop every courier
+                Fix these first — they stop Easyship
               </p>
               <ul className="mt-2 space-y-1">
                 {result.readiness.blocking.map((line) => (
@@ -184,7 +184,7 @@ export function ShippingCheckClient() {
 
           <Card className="p-0">
             <p className="border-b border-border px-5 py-3 text-sm font-bold text-ink">
-              Couriers
+              Easyship
             </p>
             <div className="divide-y divide-border">
               {result.carriers.map((carrier) => (

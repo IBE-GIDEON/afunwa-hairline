@@ -58,8 +58,9 @@ export async function quoteShipping({
   weightKg: number
   destination: RateAddress | null
 }): Promise<QuotedShipping> {
+  const fallbackMethod = method === "easyship" ? "local" : method
   const flatFee = resolveShippingFee(
-    method,
+    fallbackMethod,
     itemsTotal,
     {
       fee: Number(vendor?.delivery_fee ?? 0),

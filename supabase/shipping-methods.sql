@@ -4,9 +4,9 @@
 begin;
 
 -- ---------------------------------------------------------------------------
--- 1. What each courier costs, as the seller sets it.
+-- 1. Legacy per-courier fallback prices.
 --
---    jsonb keyed by method id — {"topship": 25000, "gig": 15000, "dhl": 45000}
+--    jsonb keyed by method id — {"easyship": 25000}
 --    — so adding a courier later is a code change and not a migration.
 --
 --    Local shipping is not in here: it stays vendor_profiles.delivery_fee,
@@ -30,6 +30,6 @@ alter table public.orders
   drop constraint if exists orders_shipping_method_valid;
 alter table public.orders
   add constraint orders_shipping_method_valid
-  check (shipping_method in ('pickup', 'local', 'topship', 'gig', 'dhl'));
+  check (shipping_method in ('pickup', 'local', 'easyship', 'terminal', 'topship', 'gig', 'dhl'));
 
 commit;

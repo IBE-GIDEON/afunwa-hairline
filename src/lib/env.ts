@@ -20,6 +20,10 @@ export const env = {
 
   // Carrier rate APIs. Server-side only, every one of them — a courier key in
   // the browser bundle is anyone's to spend.
+  /** Easyship aggregates courier rates behind one server-side token. */
+  easyshipAccessToken: process.env.EASYSHIP_ACCESS_TOKEN ?? "",
+  /** "sandbox" to use their test host; anything else is live. */
+  easyshipEnvironment: process.env.EASYSHIP_ENVIRONMENT ?? "live",
   dhlApiKey: process.env.DHL_API_KEY ?? "",
   dhlApiSecret: process.env.DHL_API_SECRET ?? "",
   dhlAccountNumber: process.env.DHL_ACCOUNT_NUMBER ?? "",
@@ -27,11 +31,6 @@ export const env = {
   dhlUseTestEnvironment: process.env.DHL_TEST_MODE === "true",
   topshipApiKey: process.env.TOPSHIP_API_KEY ?? "",
   gigApiKey: process.env.GIG_API_KEY ?? "",
-  /** Terminal Africa aggregates the couriers behind one self-serve key. */
-  terminalApiKey: process.env.TERMINAL_API_KEY ?? "",
-  terminalPackagingId: process.env.TERMINAL_PACKAGING_ID ?? "",
-  /** "sandbox" to use their test host; anything else is live. */
-  terminalEnvironment: process.env.TERMINAL_ENVIRONMENT ?? "live",
 
   // PayPal. Server-side only; the client id is not secret but there is no
   // reason to ship it when every call is made from here anyway.

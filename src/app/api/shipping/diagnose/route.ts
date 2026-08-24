@@ -9,12 +9,12 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server"
 export const dynamic = "force-dynamic"
 
 /**
- * Why a carrier is not quoting.
+ * Why Easyship is not quoting.
  *
- * Checkout deliberately hides the reason from buyers — "DHL replied 401" is
+ * Checkout deliberately hides the reason from buyers — "Easyship replied 401" is
  * not a shopper's problem, and every failure quietly becomes the flat rate.
  * That is right for them and useless for whoever has to fix it, which is what
- * this is for: the seller's own view of what each carrier actually said.
+ * this is for: the seller's own view of what the live courier quote said.
  *
  * Seller-only. It names configuration state and upstream errors, which is not
  * something to hand to the public.
@@ -51,7 +51,8 @@ export async function GET(request: Request) {
     countryCode: String(vendor.origin_country ?? "NG"),
     city: String(vendor.origin_city ?? ""),
     region: vendor.origin_state ? String(vendor.origin_state) : undefined,
-    postalCode: vendor.origin_postcode ? String(vendor.origin_postcode) : undefined
+    postalCode: vendor.origin_postcode ? String(vendor.origin_postcode) : undefined,
+    addressLine: vendor.origin_address ? String(vendor.origin_address) : undefined
   }
 
   // A real weight if any product has one, so the test is not artificial.
@@ -78,13 +79,17 @@ export async function GET(request: Request) {
           carrier: method.id,
           configured: false,
           quoted: false,
-          reason: "Keys are not set for this carrier."
+          reason: "Easyship token is not set."
         }
       }
 
       const result = await quoteCarrier(method.id as ShippingMethod, {
         origin,
-        destination: { countryCode: toCountry, city: toCity },
+        destination: {
+          countryCode: toCountry,
+          city: toCity,
+          addressLine: `${toCity} delivery address`
+        },
         weightKg: testWeight,
         lengthCm: Number(vendor.package_length_cm ?? 30),
         widthCm: Number(vendor.package_width_cm ?? 25),
@@ -93,7 +98,7 @@ export async function GET(request: Request) {
       })
 
       return {
-        carrier: method.id,
+        carrier: method.label,
         configured: true,
         quoted: result.ok,
         // The upstream's own words, which is the whole point of this route.
@@ -113,12 +118,12 @@ export async function GET(request: Request) {
       productsTotal: products?.length ?? 0,
       storeDefaultWeightKg: defaultWeight || null,
       weightUsedForTestKg: testWeight || null,
-      // The two things that stop every carrier at once, called out plainly.
+      // The two things that stop Easyship at once, called out plainly.
       blocking: [
-        ...(origin.city ? [] : ["No pickup city on the store — no carrier can quote."]),
+        ...(origin.city ? [] : ["No pickup city on the store — Easyship cannot quote."]),
         ...(testWeight > 0
           ? []
-          : ["No weights on any product and no store default — no carrier can quote."])
+          : ["No weights on any product and no store default — Easyship cannot quote."])
       ]
     },
     carriers: results

@@ -10,7 +10,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { useCart } from "@/components/providers/cart-provider"
 import { useLocale } from "@/components/providers/locale-provider"
 import { PlaceAutocomplete } from "@/components/place-autocomplete"
-import { RemoteImage } from "@/components/remote-image"
 import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS } from "@/lib/payment-methods"
@@ -41,7 +40,6 @@ import {
   startCardCheckout
 } from "@/lib/marketplace"
 import { COUNTRIES, DEFAULT_COUNTRY_CODE } from "@/lib/countries"
-import { getPrimaryProductImage } from "@/lib/product-images"
 import { queueOfflineOrder } from "@/lib/offline-orders"
 import { type PaymentMethod, type VendorDetail } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -142,7 +140,7 @@ export function CheckoutPageClient() {
   // resolveShippingFee is the same function priceCart runs on the server, so
   // the price on the button is the price charged.
   const flatShippingFee = resolveShippingFee(
-    shippingMethod,
+    shippingMethod === "easyship" ? "local" : shippingMethod,
     liveSubtotal,
     deliveryTerms,
     shippingRates
@@ -181,7 +179,8 @@ export function CheckoutPageClient() {
         destination: {
           countryCode: savedAddress.country,
           city: savedAddress.city,
-          region: savedAddress.region
+          region: savedAddress.region,
+          addressLine: savedAddress.address
         }
       })
     })
@@ -302,7 +301,8 @@ export function CheckoutPageClient() {
       shippingDestination: {
         countryCode: savedAddress.country,
         city: savedAddress.city,
-        region: savedAddress.region
+        region: savedAddress.region,
+        addressLine: savedAddress.address
       },
       paymentMethod
     }
@@ -394,7 +394,7 @@ export function CheckoutPageClient() {
                 <div className="space-y-2">
                   {availableMethods.map((method) => {
                     const flat = resolveShippingFee(
-                      method.id,
+                      method.id === "easyship" ? "local" : method.id,
                       liveSubtotal,
                       deliveryTerms,
                       shippingRates
@@ -449,7 +449,7 @@ export function CheckoutPageClient() {
                             </span>
                             {quoted !== null ? (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-                                Live rate
+                                Easyship rate
                               </span>
                             ) : null}
                           </span>
@@ -468,7 +468,7 @@ export function CheckoutPageClient() {
                           ) : null}
                           {method.brand && fee === 0 && !waitingForRate ? (
                             <span className="mt-1 block text-xs leading-5 text-muted">
-                              The seller confirms this courier&apos;s cost with you.
+                              Courier price could not be checked yet.
                             </span>
                           ) : null}
                         </span>
@@ -477,37 +477,6 @@ export function CheckoutPageClient() {
                       </button>
                     )
                   })}
-                </div>
-
-                <div className="rounded-2xl border border-border">
-                  <p className="border-b border-border px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Shipment 1 of 1
-                  </p>
-                  <div className="space-y-3 p-4">
-                    {items.map((item) => {
-                      const product = productMap.get(item.productId)
-                      return (
-                        <div key={item.productId} className="flex items-center gap-3">
-                          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-canvas">
-                            <RemoteImage
-                              src={product ? getPrimaryProductImage(product) : null}
-                              alt={item.name}
-                              sizes="56px"
-                            />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-sm font-medium text-ink">
-                              {item.name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-muted">
-                              Qty {item.quantity} ·{" "}
-                              {money((product?.price ?? item.price) * item.quantity).text}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
                 </div>
 
                 <div className="flex justify-end">

@@ -3,9 +3,9 @@ import { computeDeliveryFee, type DeliveryTerms } from "@/lib/delivery"
 /**
  * How an order can reach the buyer.
  *
- * One list, read by the checkout page, the seller's rate form and the server
- * that prices the order — so a method can never be offered at a price nobody
- * charges, or charged at a price nobody was shown.
+ * One list, read by the checkout page, diagnostics and the server that prices
+ * the order — so a method can never be offered at a price nobody charges, or
+ * charged at a price nobody was shown.
  */
 export const SHIPPING_METHODS = [
   {
@@ -22,10 +22,10 @@ export const SHIPPING_METHODS = [
     brand: null
   },
   {
-    id: "terminal",
-    label: "Express courier",
-    helper: "Cheapest of DHL, FedEx, Aramex and the local couriers, quoted live.",
-    brand: { background: "#0F172A", foreground: "#FFFFFF" }
+    id: "easyship",
+    label: "Courier delivery",
+    helper: "Live courier price through Easyship.",
+    brand: { background: "#111827", foreground: "#FFFFFF" }
   },
   {
     id: "topship",
@@ -90,29 +90,26 @@ export function shippingMethodsFor(countryCode: string | undefined) {
 /**
  * Couriers offered on their own account, beside the aggregator.
  *
- * Empty on purpose. Terminal Africa already quotes DHL, FedEx, Aramex and the
- * local couriers and charges whichever is cheapest, so listing them again
- * would be three more buttons that each need their own contract to mean
- * anything — and a buyer choosing "DHL" with no DHL account behind it would
- * simply be quoted the flat rate.
+ * Empty on purpose. Easyship is the one courier option buyers see, so listing
+ * direct couriers beside it would add choices that still need separate
+ * contracts to mean anything.
  *
- * Put "dhl" back here the day a negotiated DHL rate beats what Terminal
- * returns. Nothing else needs changing: the buttons, the seller's rate boxes
- * and the diagnostics all read this list, and the DHL rate call is still
- * written and still tested.
+ * Put "dhl" back here the day a negotiated DHL rate beats Easyship. Nothing
+ * else needs changing: the buttons and diagnostics both read this list, and
+ * the DHL rate call is still written.
  */
 const DIRECT_COURIERS_OFFERED: ShippingMethod[] = []
 
 function isOffered(method: ShippingMethod) {
   // The aggregator and the two plain options are always offered; a direct
   // courier only when it has been turned on above.
-  if (method === "pickup" || method === "local" || method === "terminal") {
+  if (method === "pickup" || method === "local" || method === "easyship") {
     return true
   }
   return DIRECT_COURIERS_OFFERED.includes(method)
 }
 
-/** The couriers a seller sets a rate for — the fallback when a quote fails. */
+/** The live courier options shown to buyers and checked by diagnostics. */
 export const COURIER_METHODS = SHIPPING_METHODS.filter(
   (method) => method.brand && isOffered(method.id)
 )
@@ -132,7 +129,7 @@ export function getShippingMethod(id: ShippingMethod) {
   return SHIPPING_METHODS.find((method) => method.id === id) ?? SHIPPING_METHODS[1]
 }
 
-/** Per-courier prices, as the seller sets them. Keyed by method id. */
+/** Legacy per-courier fallback prices. Keyed by method id. */
 export type ShippingRates = Partial<Record<ShippingMethod, number>>
 
 /**

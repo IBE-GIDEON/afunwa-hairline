@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       city?: unknown
       region?: unknown
       postalCode?: unknown
+      addressLine?: unknown
     }
   }
 
@@ -93,6 +94,9 @@ export async function POST(request: Request) {
             : undefined,
           postalCode: payload.destination?.postalCode
             ? String(payload.destination.postalCode)
+            : undefined,
+          addressLine: payload.destination?.addressLine
+            ? String(payload.destination.addressLine)
             : undefined
         }
       : null
