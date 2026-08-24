@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { env, hasSupabaseAdmin } from "@/lib/env"
-import { COURIER_METHODS, type ShippingMethod } from "@/lib/shipping"
+import {
+  COURIER_METHODS,
+  isLocalShippingCountry,
+  type ShippingMethod
+} from "@/lib/shipping"
 import { getRateProvider, quoteCarrier } from "@/lib/shipping-rates"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
@@ -81,7 +85,8 @@ export async function GET(request: Request) {
     defaultWeight ||
     (Number.isFinite(fallbackWeight) && fallbackWeight > 0 ? fallbackWeight : 1)
 
-  const carriers = COURIER_METHODS
+  const localOnlyDestination = isLocalShippingCountry(toCountry)
+  const carriers = localOnlyDestination ? [] : COURIER_METHODS
 
   const results = await Promise.all(
     carriers.map(async (method) => {
@@ -131,6 +136,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     testedRoute: `${origin.city || "(no pickup city)"} -> ${toAddress}`,
+    localOnlyDestination,
     readiness: {
       pickupCitySet: Boolean(origin.city),
       pickupCountry: origin.countryCode,

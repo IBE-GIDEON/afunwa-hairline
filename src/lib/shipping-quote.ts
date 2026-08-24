@@ -1,6 +1,7 @@
 import { type SupabaseClient } from "@supabase/supabase-js"
 
 import {
+  isMethodAvailableFor,
   resolveShippingFee,
   parseShippingRates,
   type ShippingMethod
@@ -85,6 +86,14 @@ export async function quoteShipping({
 
   if (!destination) {
     return { fee: flatFee, source: "flat", reason: "No delivery address yet." }
+  }
+
+  if (!isMethodAvailableFor(method, destination.countryCode)) {
+    return {
+      fee: flatFee,
+      source: "flat",
+      reason: "That shipping method is not offered for this country."
+    }
   }
 
   const ownerEmail = await getVendorOwnerEmail(supabase, vendor)

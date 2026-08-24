@@ -73,23 +73,46 @@ export const LOCAL_SHIPPING_COUNTRIES = ["NG"] as const
 /**
  * Whether a method can be offered to an address in this country.
  *
- * Local shipping is the only one that is fussy: quoting a Nigerian flat rate
- * against a Ghanaian address would both read as nonsense and undercharge. An
- * unknown country is treated as allowed, since the buyer has not said yet.
+ * Nigeria is handled by the store's own local delivery or customer pickup.
+ * Live couriers are reserved for addresses outside Nigeria, where the buyer
+ * actually needs cross-border shipping. An unknown country is treated as
+ * allowed, since the buyer has not said yet.
  */
 export function isMethodAvailableFor(
   method: ShippingMethod,
   countryCode: string | undefined
 ): boolean {
-  if (method !== "local") return true
   if (!countryCode) return true
-  return (LOCAL_SHIPPING_COUNTRIES as readonly string[]).includes(countryCode)
+
+  const localCountry = isLocalShippingCountry(countryCode)
+  if (method === "pickup") return true
+  if (method === "local") return localCountry
+
+  return !localCountry
 }
 
 /** The methods offerable to an address in this country, in order. */
 export function shippingMethodsFor(countryCode: string | undefined) {
   return SHIPPING_METHODS.filter(
     (method) => isOffered(method.id) && isMethodAvailableFor(method.id, countryCode)
+  )
+}
+
+export function isLocalShippingCountry(countryCode: string | undefined) {
+  const normalized = countryCode?.trim().toUpperCase()
+  if (!normalized) return false
+  return (LOCAL_SHIPPING_COUNTRIES as readonly string[]).includes(normalized)
+}
+
+export function preferredShippingMethodFor(
+  countryCode: string | undefined
+): ShippingMethod {
+  const methods = shippingMethodsFor(countryCode)
+  const preferredId = isLocalShippingCountry(countryCode) ? "local" : "courier"
+  return (
+    methods.find((method) => method.id === preferredId)?.id ??
+    methods[0]?.id ??
+    DEFAULT_SHIPPING_METHOD
   )
 }
 

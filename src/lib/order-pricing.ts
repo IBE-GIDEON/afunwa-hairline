@@ -137,10 +137,15 @@ export async function priceCart(
     destination?.countryCode &&
     !isMethodAvailableFor(shippingMethod, destination.countryCode)
   ) {
+    const message =
+      shippingMethod === "local"
+        ? "Local shipping does not cover that country. Choose a courier."
+        : "Courier delivery is for outside Nigeria. Choose local shipping or pickup."
+
     return {
       ok: false,
       status: 400,
-      error: "Local shipping does not cover that country. Choose a courier."
+      error: message
     }
   }
 

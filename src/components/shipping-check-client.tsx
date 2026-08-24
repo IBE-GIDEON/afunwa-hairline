@@ -21,6 +21,7 @@ type CarrierResult = {
 
 type Diagnosis = {
   testedRoute: string
+  localOnlyDestination?: boolean
   readiness: {
     pickupCitySet: boolean
     pickupCountry: string
@@ -104,8 +105,8 @@ export function ShippingCheckClient() {
 
       <Card className="p-5">
         <p className="text-sm leading-6 text-muted">
-          This checks Shipbubble live courier rates to a delivery city. Checkout
-          uses your store delivery fee when Shipbubble cannot quote.
+          Nigeria uses local shipping and customer pickup. Use another country
+          here to check live courier rates for international delivery.
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_120px]">
@@ -199,11 +200,14 @@ export function ShippingCheckClient() {
               {result.carriers.length === 0 ? (
                 <div className="px-5 py-4">
                   <p className="text-sm font-semibold text-ink">
-                    Manual courier delivery is active
+                    {result.localOnlyDestination
+                      ? "Local delivery only"
+                      : "Manual courier delivery is active"}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Buyers still see your store delivery fee. Add the Shipbubble
-                    key to turn on live courier rates.
+                    {result.localOnlyDestination
+                      ? "Buyers in Nigeria see local shipping and customer pickup. Courier delivery appears only outside Nigeria."
+                      : "Buyers still see your store delivery fee. Add the Shipbubble key to turn on live courier rates."}
                   </p>
                 </div>
               ) : null}

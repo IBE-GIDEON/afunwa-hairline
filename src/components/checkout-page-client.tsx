@@ -17,6 +17,7 @@ import { amountToFreeDelivery } from "@/lib/delivery"
 import {
   DEFAULT_SHIPPING_METHOD,
   isMethodAvailableFor,
+  preferredShippingMethodFor,
   resolveShippingFee,
   shippingMethodsFor,
   type ShippingMethod
@@ -156,12 +157,12 @@ export function CheckoutPageClient() {
   const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
   const orderTotal = Math.round((liveSubtotal + deliveryFee) * 100) / 100
 
-  // Changing country can take the chosen method off the list — local shipping
-  // does not cover Ghana. Leaving it selected would price and charge it.
+  // Changing country can take the chosen method off the list: local is for
+  // Nigeria, courier is for outside Nigeria. Leaving the old one selected
+  // would price and charge the wrong route.
   useEffect(() => {
     if (isMethodAvailableFor(shippingMethod, savedAddress?.country)) return
-    const fallback = shippingMethodsFor(savedAddress?.country)[0]
-    if (fallback) setShippingMethod(fallback.id)
+    setShippingMethod(preferredShippingMethodFor(savedAddress?.country))
   }, [savedAddress?.country, shippingMethod])
 
   // Ask the server for the courier's own price once we know the destination.
