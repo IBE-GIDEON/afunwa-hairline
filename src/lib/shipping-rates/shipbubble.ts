@@ -285,8 +285,10 @@ function readCourier(value: unknown) {
   const courier = asObject(value)
   if (!courier) return null
 
+  // Both kinds are usable: the seller can hand the parcel over at a Lagos
+  // drop-off point or wait for a rider. Accepting only pickup couriers threw
+  // away the drop-off ones, which are routinely the cheaper half of the list.
   const serviceType = clean(courier.service_type).toLowerCase()
-  if (serviceType && serviceType !== "pickup") return null
 
   const amount =
     readNumber(courier.rate_card_amount) ??
@@ -298,7 +300,20 @@ function readCourier(value: unknown) {
   const courierName = clean(courier.courier_name)
   const serviceCode = clean(courier.service_code)
   const eta = clean(courier.delivery_eta)
-  const serviceName = [courierName, serviceCode, eta ? `Delivery: ${eta}` : ""]
+  // Which of the two it is matters to whoever has to hand the parcel over, so
+  // it travels with the quote rather than being dropped here.
+  const handover =
+    serviceType === "dropoff" || serviceType === "drop_off"
+      ? "Drop-off"
+      : serviceType === "pickup"
+        ? "Pickup"
+        : ""
+  const serviceName = [
+    courierName,
+    serviceCode,
+    handover,
+    eta ? `Delivery: ${eta}` : ""
+  ]
     .filter(Boolean)
     .join(" - ")
 
