@@ -15,6 +15,12 @@ import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS } from "@/lib/payment-methods"
 import { amountToFreeDelivery } from "@/lib/delivery"
 import {
+  computeZoneUplift,
+  HOME_ZONE,
+  zoneForCountry,
+  type ZoneRates
+} from "@/lib/shipping-zones"
+import {
   DEFAULT_SHIPPING_METHOD,
   isMethodAvailableFor,
   preferredShippingMethodFor,
@@ -141,21 +147,53 @@ export function CheckoutPageClient() {
     | undefined
   // resolveShippingFee is the same function priceCart runs on the server, so
   // the price on the button is the price charged.
+  /*
+   * The same branch priceCart takes on the server. Outside Nigeria the price
+   * already carries the shipping, so no postage may be added on top — the cart
+   * holds base prices, the cards showed delivered ones, and without this the
+   * two disagree with each other and with what is finally charged.
+   */
+  const zone = zoneForCountry(savedAddress?.country)
+  const shippingInPrice = zone !== HOME_ZONE
+  const zoneRates = vendorData?.vendor.shippingZones as ZoneRates | undefined
+  const freeOver = Number(vendorData?.vendor.freeDeliveryOver ?? 0)
+  const earnedFreeShipping =
+    Number.isFinite(freeOver) && freeOver > 0 && liveSubtotal >= freeOver
+
+  const zoneUplift =
+    shippingInPrice && !earnedFreeShipping
+      ? Math.round(
+          items.reduce((sum, item) => {
+            const product = productMap.get(item.productId)
+            return (
+              sum +
+              computeZoneUplift(zone, Number(product?.weightKg ?? 0), zoneRates) *
+                item.quantity
+            )
+          }, 0) * 100
+        ) / 100
+      : 0
+
+  const itemsTotal = Math.round((liveSubtotal + zoneUplift) * 100) / 100
+
   const flatShippingFee = resolveShippingFee(
     shippingMethod,
     liveSubtotal,
     deliveryTerms,
     shippingRates
   )
-  const deliveryFee =
-    carrierQuote?.method === shippingMethod ? carrierQuote.fee : flatShippingFee
+  const deliveryFee = shippingInPrice
+    ? 0
+    : carrierQuote?.method === shippingMethod
+      ? carrierQuote.fee
+      : flatShippingFee
   const selectedLiveCourier =
     shippingMethod !== "pickup" && shippingMethod !== "local"
   const selectedShippingPending = selectedLiveCourier && quoting
   const selectedShippingUnavailable =
     selectedLiveCourier && !quoting && !carrierQuote && deliveryFee <= 0
   const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
-  const orderTotal = Math.round((liveSubtotal + deliveryFee) * 100) / 100
+  const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
   // Changing country can take the chosen method off the list: local is for
   // Nigeria, courier is for outside Nigeria. Leaving the old one selected
@@ -633,7 +671,8 @@ export function CheckoutPageClient() {
 
         <OrderSummary
           itemCount={itemCount}
-          itemsTotal={liveSubtotal}
+          itemsTotal={itemsTotal}
+          shippingInPrice={shippingInPrice}
           deliveryFee={deliveryFee}
           shippingPending={selectedShippingPending}
           shippingUnavailable={selectedShippingUnavailable}
@@ -898,6 +937,7 @@ function AddressForm({
 function OrderSummary({
   itemCount,
   itemsTotal,
+  shippingInPrice,
   deliveryFee,
   shippingPending,
   shippingUnavailable,
@@ -909,6 +949,8 @@ function OrderSummary({
 }: {
   itemCount: number
   itemsTotal: number
+  /** Outside Nigeria the postage is already inside the item prices. */
+  shippingInPrice: boolean
   deliveryFee: number
   shippingPending: boolean
   shippingUnavailable: boolean
@@ -942,13 +984,18 @@ function OrderSummary({
                   : "text-success"
             )}
           >
-            {shippingPending
-              ? "Checking"
-              : shippingUnavailable
-                ? "Unavailable"
-                : deliveryFee > 0
-                  ? money(deliveryFee).text
-                  : "Free"}
+            {/* "Included" rather than "Free": outside Nigeria it is already
+                inside the prices above, and calling that free would be a
+                small lie a buyer could catch. */}
+            {shippingInPrice
+              ? "Included"
+              : shippingPending
+                ? "Checking"
+                : shippingUnavailable
+                  ? "Unavailable"
+                  : deliveryFee > 0
+                    ? money(deliveryFee).text
+                    : "Free"}
           </span>
         </div>
 
