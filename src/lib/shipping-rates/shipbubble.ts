@@ -257,13 +257,16 @@ function pickBestRate(data: unknown) {
   const payload = asObject(asObject(data)?.data) ?? asObject(data)
   if (!payload) return null
 
+  // Cheapest first, deliberately. A buyer abandons a basket when postage
+  // outweighs the goods, and they abandon it long before they mind waiting an
+  // extra day — so fastest_courier is the last thing to reach for, not an
+  // early preference.
   const recommended = [
+    payload.cheapest_courier,
     payload.best_value_courier,
     payload.best_value,
     payload.best_courier,
-    payload.recommended_courier,
-    payload.fastest_courier,
-    payload.cheapest_courier
+    payload.recommended_courier
   ]
     .map(readCourier)
     .find(Boolean)
@@ -311,11 +314,12 @@ function readCourier(value: unknown) {
   }
 }
 
+/** Price first, then speed as the tiebreaker between equally priced couriers. */
 function compareCouriers(left: ShipbubbleCourierRate, right: ShipbubbleCourierRate) {
   return (
+    left.amount - right.amount ||
     left.pickupEtaTime - right.pickupEtaTime ||
-    left.deliveryEtaTime - right.deliveryEtaTime ||
-    left.amount - right.amount
+    left.deliveryEtaTime - right.deliveryEtaTime
   )
 }
 
