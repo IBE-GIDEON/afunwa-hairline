@@ -259,6 +259,7 @@ export function VendorStoreClient({
                       className="mt-1.5"
                       price={product.price}
                       compareAtPrice={product.compareAtPrice}
+                      weightKg={product.weightKg}
                     />
                   </div>
                 </button>
@@ -381,6 +382,7 @@ export function VendorStoreClient({
                 showBadge
                 price={selectedProduct.price}
                 compareAtPrice={selectedProduct.compareAtPrice}
+                weightKg={selectedProduct.weightKg}
               />
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
                 <span className="rounded-full bg-canvas px-2.5 py-1 font-medium">

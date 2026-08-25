@@ -27,6 +27,7 @@ import { fetchWithRetry } from "@/lib/fetch-utils"
 import { normalizeCompareAtPrice } from "@/lib/pricing"
 import { normalizeProductCategory } from "@/lib/product-categories"
 import { parseShippingRates } from "@/lib/shipping"
+import { parseZoneRates } from "@/lib/shipping-zones"
 import {
   normalizeProductPhotoUrls,
   serializeLegacyPhotoUrl
@@ -95,6 +96,7 @@ function mapVendor(row: Record<string, unknown>): VendorProfile {
       row.free_delivery_over != null ? Number(row.free_delivery_over) : undefined,
     deliveryNote: row.delivery_note ? String(row.delivery_note) : undefined,
     shippingRates: parseShippingRates(row.shipping_rates),
+    shippingZones: parseZoneRates(row.shipping_zones),
     originAddress: row.origin_address ? String(row.origin_address) : undefined,
     originCity: row.origin_city ? String(row.origin_city) : undefined,
     originState: row.origin_state ? String(row.origin_state) : undefined,
@@ -2395,6 +2397,7 @@ export async function saveSellerProfile(
         free_delivery_over: input.freeDeliveryOver ?? null,
         delivery_note: input.deliveryNote ?? null,
         shipping_rates: input.shippingRates ?? {},
+        shipping_zones: input.shippingZones ?? {},
         origin_address: input.originAddress ?? null,
         origin_city: input.originCity ?? null,
         origin_state: input.originState ?? null,
@@ -2424,7 +2427,8 @@ export async function saveSellerProfile(
       message.includes("delivery_fee") ||
       message.includes("free_delivery_over") ||
       message.includes("delivery_note") ||
-      message.includes("shipping_rates")
+      message.includes("shipping_rates") ||
+      message.includes("shipping_zones")
     ) {
       throw new Error(
         "Run the latest Supabase shipping SQL patches, then save again."

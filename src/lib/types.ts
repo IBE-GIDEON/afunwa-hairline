@@ -71,6 +71,8 @@ export interface VendorProfile {
   deliveryNote?: string
   /** Per-courier prices, keyed by shipping method id. See lib/shipping. */
   shippingRates?: Record<string, number>
+  /** Per-zone uplift, keyed by zone id. See lib/shipping-zones. */
+  shippingZones?: Record<string, { base: number; perKg: number }>
   /** Where couriers collect from, and quote against. */
   originAddress?: string
   originCity?: string
@@ -233,6 +235,7 @@ export interface SellerProfileInput {
   freeDeliveryOver?: number
   deliveryNote?: string
   shippingRates?: Record<string, number>
+  shippingZones?: Record<string, { base: number; perKg: number }>
   originAddress?: string
   originCity?: string
   originState?: string

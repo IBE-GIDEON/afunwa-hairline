@@ -315,7 +315,11 @@ function ProductSearchCard({ product }: { product: ProductSearchResult }) {
       </div>
       <div className="space-y-2 p-3">
         <p className="line-clamp-2 text-sm font-semibold text-ink">{product.name}</p>
-        <PriceTag price={product.price} compareAtPrice={product.compareAtPrice} />
+        <PriceTag
+          price={product.price}
+          compareAtPrice={product.compareAtPrice}
+          weightKg={product.weightKg}
+        />
         <p className="text-xs text-muted">Sold by {product.vendor.storeName}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-canvas text-[11px]">

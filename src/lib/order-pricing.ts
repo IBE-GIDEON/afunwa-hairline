@@ -6,6 +6,12 @@ import {
   type ShippingMethod
 } from "@/lib/shipping"
 import { quoteShipping, totalCartWeight } from "@/lib/shipping-quote"
+import {
+  computeZoneUplift,
+  HOME_ZONE,
+  parseZoneRates,
+  zoneForCountry
+} from "@/lib/shipping-zones"
 import { type RateAddress } from "@/lib/shipping-rates"
 import { type OrderItem } from "@/lib/types"
 
@@ -106,12 +112,59 @@ export async function priceCart(
     }
   }
 
-  const items: OrderItem[] = rows.map((row) => ({
+  // Read off the joined store, through the same function the checkout page
+  // uses to display it, so the quoted figure and the charged one cannot drift.
+  const vendor = (rows[0] as Record<string, unknown>).vendor_profiles as
+    | Record<string, unknown>
+    | undefined
+
+  const baseItems: OrderItem[] = rows.map((row) => ({
     productId: String(row.id),
     name: String(row.name),
     price: Number(row.price),
     quantity: requested.get(String(row.id)) as number
   }))
+
+  const baseItemsTotal =
+    Math.round(
+      baseItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100
+    ) / 100
+
+  /*
+   * Outside Nigeria the price a shopper saw already contained the shipping, so
+   * it has to be charged the same way: folded into each line, with no postage
+   * added on top. Adding both would bill the shipping twice.
+   *
+   * The free-over threshold does real work here. A per-unit uplift necessarily
+   * over-recovers on a multi-item order — six wigs in one box do not cost six
+   * base fees to send — and the threshold is what cancels it, at exactly the
+   * basket size where it would start to bite. So the total can come out below
+   * the sum of the prices on the cards, never above.
+   */
+  const zone = zoneForCountry(destination?.countryCode)
+  const zoneRates = parseZoneRates(vendor?.shipping_zones)
+  const freeOver = Number(vendor?.free_delivery_over ?? 0)
+  const zoneShippingIsIncluded = zone !== HOME_ZONE
+  const earnedFreeShipping =
+    Number.isFinite(freeOver) && freeOver > 0 && baseItemsTotal >= freeOver
+
+  const items: OrderItem[] =
+    zoneShippingIsIncluded && !earnedFreeShipping
+      ? rows.map((row) => {
+          const productId = String(row.id)
+          const uplift = computeZoneUplift(
+            zone,
+            Number((row as { weight_kg?: unknown }).weight_kg ?? 0),
+            zoneRates
+          )
+          return {
+            productId,
+            name: String(row.name),
+            price: Math.round((Number(row.price) + uplift) * 100) / 100,
+            quantity: requested.get(productId) as number
+          }
+        })
+      : baseItems
 
   // numeric(12,2) in Postgres — settle the rounding here rather than let the
   // database truncate a floating point tail.
@@ -119,12 +172,6 @@ export async function priceCart(
     Math.round(
       items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100
     ) / 100
-
-  // Read off the joined store, through the same function the checkout page
-  // uses to display it, so the quoted figure and the charged one cannot drift.
-  const vendor = (rows[0] as Record<string, unknown>).vendor_profiles as
-    | Record<string, unknown>
-    | undefined
 
   // The browser says which method; what it costs is decided here. Anything
   // unrecognised falls back to local rather than to free.
@@ -165,9 +212,11 @@ export async function priceCart(
     destination: destination ?? null
   })
 
-  const deliveryFee = shipping.fee
+  // Either the uplift or a postage line, never both.
+  const deliveryFee = zoneShippingIsIncluded ? 0 : shipping.fee
 
   if (
+    !zoneShippingIsIncluded &&
     shippingMethod !== "pickup" &&
     shippingMethod !== "local" &&
     deliveryFee <= 0

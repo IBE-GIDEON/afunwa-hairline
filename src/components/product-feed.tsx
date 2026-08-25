@@ -134,7 +134,11 @@ function ProductFeedCard({ product }: { product: ProductSearchResult }) {
         <p className="line-clamp-2 text-sm font-semibold leading-5 text-ink">
           {product.name}
         </p>
-        <PriceTag price={product.price} compareAtPrice={product.compareAtPrice} />
+        <PriceTag
+          price={product.price}
+          compareAtPrice={product.compareAtPrice}
+          weightKg={product.weightKg}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-canvas text-[11px]">
