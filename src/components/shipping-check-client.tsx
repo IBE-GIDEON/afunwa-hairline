@@ -22,6 +22,8 @@ type CarrierResult = {
 type Diagnosis = {
   testedRoute: string
   localOnlyDestination?: boolean
+  zone?: string
+  currentZoneRate?: { base: number; perKg: number } | null
   readiness: {
     pickupCitySet: boolean
     pickupCountry: string
@@ -47,6 +49,8 @@ export function ShippingCheckClient() {
   const [city, setCity] = useState("Lagos")
   const [country, setCountry] = useState("NG")
   const [address, setAddress] = useState("57 Marina, Lagos, Nigeria")
+  // Priced per kilogram, so the weight is the other half of the question.
+  const [weight, setWeight] = useState("0.5")
   const [result, setResult] = useState<Diagnosis | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
@@ -58,7 +62,7 @@ export function ShippingCheckClient() {
     try {
       const token = await getAccessToken()
       const response = await fetch(
-        `/api/shipping/diagnose?to=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&address=${encodeURIComponent(address)}`,
+        `/api/shipping/diagnose?to=${encodeURIComponent(city)}&country=${encodeURIComponent(country)}&address=${encodeURIComponent(address)}&weight=${encodeURIComponent(weight)}`,
         { headers: token ? { Authorization: `Bearer ${token}` } : {} }
       )
 
@@ -99,6 +103,19 @@ export function ShippingCheckClient() {
     )
   }
 
+  const quoted = result?.carriers.find((carrier) => carrier.quoted)
+  const quotedAmount = quoted?.amount ?? null
+  const quotedCurrency = quoted?.currency ?? "NGN"
+
+  // Two thirds fixed, one third by weight. A rough split, but it stops a
+  // heavy order being priced as though it weighed nothing — and the seller
+  // adjusts both boxes anyway once they have quoted a second weight.
+  const testedWeight = Number(weight) > 0 ? Number(weight) : 1
+  const suggested = {
+    base: Math.round(((quotedAmount ?? 0) * 0.66) / 100) * 100,
+    perKg: Math.round(((quotedAmount ?? 0) * 0.34) / testedWeight / 100) * 100
+  }
+
   return (
     <div className={`${PAGE_WIDTH.content} space-y-4 p-4 pb-safe-nav lg:py-8`}>
       <SectionHeading title="Shipping check" />
@@ -126,6 +143,15 @@ export function ShippingCheckClient() {
             value={address}
             placeholder="Full delivery address"
             onChange={(event) => setAddress(event.target.value)}
+          />
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.1"
+            value={weight}
+            placeholder="Parcel weight in kg"
+            onChange={(event) => setWeight(event.target.value)}
           />
           <div className="sm:col-span-2 sm:flex sm:justify-end">
             <Button onClick={run} disabled={busy}>
@@ -191,6 +217,50 @@ export function ShippingCheckClient() {
               />
             </dl>
           </Card>
+
+          {/* The point of running a live quote: turning it into a number you
+              can save against the zone, so the storefront never has to ask a
+              courier again. */}
+          {quotedAmount !== null && result.zone ? (
+            <Card className="border-emerald-300 bg-emerald-50 p-5">
+              <p className="text-sm font-bold text-emerald-900">
+                Suggested rate for {result.zone}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-emerald-900">
+                A {weight}kg parcel to {city} quoted{" "}
+                <span className="font-bold">
+                  {quotedCurrency} {quotedAmount.toLocaleString()}
+                </span>
+                . Split across the two boxes on your store settings, that is
+                roughly:
+              </p>
+              <dl className="mt-3 space-y-1 text-sm text-emerald-900">
+                <div className="flex justify-between gap-3">
+                  <dt>Base</dt>
+                  <dd className="font-bold">
+                    {suggested.base.toLocaleString()}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt>Per kg</dt>
+                  <dd className="font-bold">
+                    {suggested.perKg.toLocaleString()}
+                  </dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs leading-5 text-emerald-900">
+                Check a heavier parcel too before saving — the split is only a
+                guess from one weight. Add your own margin on top.
+              </p>
+              {result.currentZoneRate ? (
+                <p className="mt-2 text-xs leading-5 text-emerald-900">
+                  Currently saved: base{" "}
+                  {result.currentZoneRate.base.toLocaleString()}, per kg{" "}
+                  {result.currentZoneRate.perKg.toLocaleString()}.
+                </p>
+              ) : null}
+            </Card>
+          ) : null}
 
           <Card className="p-0">
             <p className="border-b border-border px-5 py-3 text-sm font-bold text-ink">

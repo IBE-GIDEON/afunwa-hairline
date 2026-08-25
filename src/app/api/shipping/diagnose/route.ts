@@ -6,6 +6,7 @@ import {
   isLocalShippingCountry,
   type ShippingMethod
 } from "@/lib/shipping"
+import { parseZoneRates, zoneForCountry } from "@/lib/shipping-zones"
 import { getRateProvider, quoteCarrier } from "@/lib/shipping-rates"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
@@ -80,7 +81,13 @@ export async function GET(request: Request) {
   const weighed = (products ?? []).filter((row) => Number(row.weight_kg) > 0)
   const defaultWeight = Number(vendor.default_item_weight_kg ?? 0)
   const fallbackWeight = Number(env.shippingDefaultItemWeightKg)
+  // An explicit weight wins: pricing a three kilogram bundle order should not
+  // require editing a product first.
+  const requestedWeight = Number(searchParams.get("weight") ?? 0)
   const testWeight =
+    (Number.isFinite(requestedWeight) && requestedWeight > 0
+      ? requestedWeight
+      : 0) ||
     Number(weighed[0]?.weight_kg ?? 0) ||
     defaultWeight ||
     (Number.isFinite(fallbackWeight) && fallbackWeight > 0 ? fallbackWeight : 1)
@@ -134,9 +141,17 @@ export async function GET(request: Request) {
     })
   )
 
+  const zone = zoneForCountry(toCountry)
+  const zoneRates = parseZoneRates(vendor.shipping_zones)
+  const currentZoneRate = zoneRates[zone] ?? null
+
   return NextResponse.json({
     testedRoute: `${origin.city || "(no pickup city)"} -> ${toAddress}`,
     localOnlyDestination,
+    // What this destination would be priced as once zone pricing is on, so a
+    // live quote can be turned straight into a rate to save.
+    zone,
+    currentZoneRate,
     readiness: {
       pickupCitySet: Boolean(origin.city),
       pickupCountry: origin.countryCode,
