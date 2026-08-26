@@ -23,3 +23,31 @@ export const PAYMENT_METHODS: PaymentMethod[] = [
   ...(hasFlutterwave ? [] : (["vendor_transfer"] as PaymentMethod[])),
   ...(PAY_ON_DELIVERY_ENABLED ? (["pay_on_delivery"] as PaymentMethod[]) : [])
 ]
+
+/** Rails where the money is taken before the parcel moves. */
+const PREPAID_METHODS: PaymentMethod[] = ["flutterwave", "paypal"]
+
+export function isPrepaidMethod(method: PaymentMethod) {
+  return PREPAID_METHODS.includes(method)
+}
+
+/**
+ * What a buyer in this country may pay with.
+ *
+ * Outside Nigeria it is card only, deliberately. An international parcel costs
+ * tens of thousands of naira to send and cannot be recovered — a buyer in
+ * Monrovia who goes quiet after a transfer promise takes the courier fee with
+ * them. At home a failed order costs a rider, which is survivable.
+ *
+ * Returns nothing when no card rail is configured, rather than quietly falling
+ * back to a transfer. Refusing the order is the cheaper mistake.
+ */
+export function paymentMethodsFor(
+  countryCode: string | undefined,
+  homeCountry = "NG"
+): PaymentMethod[] {
+  if (!countryCode || countryCode.toUpperCase() === homeCountry) {
+    return PAYMENT_METHODS
+  }
+  return PAYMENT_METHODS.filter(isPrepaidMethod)
+}

@@ -43,6 +43,27 @@ export async function POST(request: Request) {
       ? "vendor_transfer"
       : "pay_on_delivery"
 
+  /*
+   * This route creates the orders where no money has moved yet — a transfer to
+   * be confirmed, or cash on delivery. Neither is acceptable abroad: an
+   * international parcel costs tens of thousands of naira to send and cannot
+   * be recovered if the buyer goes quiet. Checkout already hides the option,
+   * and hiding a button is not a rule.
+   */
+  const destinationCountry = String(
+    payload.shippingDestination?.countryCode ?? ""
+  ).toUpperCase()
+
+  if (destinationCountry && destinationCountry !== "NG") {
+    return NextResponse.json(
+      {
+        error:
+          "Orders outside Nigeria must be paid by card. Choose card payment to continue."
+      },
+      { status: 400 }
+    )
+  }
+
   const priced = await priceCart(
     supabase,
     payload.items,

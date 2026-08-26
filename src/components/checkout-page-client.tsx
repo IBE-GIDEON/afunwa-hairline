@@ -12,7 +12,7 @@ import { useLocale } from "@/components/providers/locale-provider"
 import { PlaceAutocomplete } from "@/components/place-autocomplete"
 import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
-import { PAYMENT_METHODS } from "@/lib/payment-methods"
+import { PAYMENT_METHODS, paymentMethodsFor } from "@/lib/payment-methods"
 import { amountToFreeDelivery } from "@/lib/delivery"
 import {
   computeZoneUplift,
@@ -141,6 +141,7 @@ export function CheckoutPageClient() {
     note: vendorData?.vendor.deliveryNote
   }
   const availableMethods = shippingMethodsFor(savedAddress?.country)
+  const availablePaymentMethods = paymentMethodsFor(savedAddress?.country)
 
   const shippingRates = vendorData?.vendor.shippingRates as
     | Record<ShippingMethod, number>
@@ -194,6 +195,13 @@ export function CheckoutPageClient() {
     selectedLiveCourier && !quoting && !carrierQuote && deliveryFee <= 0
   const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
   const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
+
+  // Outside Nigeria only the prepaid rails are offered, so a transfer left
+  // selected from a Nigerian address would be charged a way we do not accept.
+  useEffect(() => {
+    if (availablePaymentMethods.includes(paymentMethod)) return
+    if (availablePaymentMethods[0]) setPaymentMethod(availablePaymentMethods[0])
+  }, [availablePaymentMethods, paymentMethod])
 
   // Changing country can take the chosen method off the list: local is for
   // Nigeria, courier is for outside Nigeria. Leaving the old one selected
@@ -545,7 +553,7 @@ export function CheckoutPageClient() {
                                   the Nigerian flat fee against a Liberian
                                   address while the summary said Included. */}
                               {shippingInPrice
-                                ? "Included"
+                                ? "Covered"
                                 : waitingForRate
                                   ? "Checking rate..."
                                   : priceUnavailable
@@ -611,7 +619,14 @@ export function CheckoutPageClient() {
           >
             {step === 3 ? (
               <div className="space-y-3">
-                {PAYMENT_METHODS.map((method) => {
+                {availablePaymentMethods.length === 0 ? (
+                  <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+                    Card payment is required for orders outside Nigeria, and it
+                    is not switched on yet. Message us on WhatsApp and we will
+                    arrange it with you.
+                  </p>
+                ) : null}
+                {availablePaymentMethods.map((method) => {
                   const meta = PAYMENT_METHOD_META[method]
                   const needsSellerDetails =
                     method === "vendor_transfer" && !vendorTransferReady
@@ -1018,7 +1033,7 @@ function OrderSummary({
                 inside the prices above, and calling that free would be a
                 small lie a buyer could catch. */}
             {shippingInPrice
-              ? "Included"
+              ? "Covered"
               : shippingPending
                 ? "Checking"
                 : shippingUnavailable
