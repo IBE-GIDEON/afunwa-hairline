@@ -455,6 +455,28 @@ export function CheckoutPageClient() {
           >
             {step === 2 && savedAddress ? (
               <div className="space-y-4">
+                {/* A buyer who has just seen prices with shipping folded in
+                    needs telling that is what happened, or the missing figure
+                    reads as something still to come. Says it once, plainly,
+                    before the options rather than after them. */}
+                {shippingInPrice ? (
+                  <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
+                    <p className="text-sm font-semibold text-success">
+                      {deliveryTerms.note?.trim()
+                        ? deliveryTerms.note
+                        : `Shipping to ${
+                            COUNTRIES.find(
+                              (entry) => entry.code === savedAddress?.country
+                            )?.name ?? "your country"
+                          } is already covered`}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      The prices you saw include delivery. There is nothing
+                      extra to pay for shipping.
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="space-y-2">
                   {availableMethods.map((method) => {
                     const flat = resolveShippingFee(
@@ -509,22 +531,30 @@ export function CheckoutPageClient() {
                             <span
                               className={cn(
                                 "text-sm font-semibold",
-                                priceUnavailable
-                                  ? "text-amber-700"
-                                  : fee > 0
-                                    ? "text-brand"
-                                    : "text-success"
+                                shippingInPrice
+                                  ? "text-success"
+                                  : priceUnavailable
+                                    ? "text-amber-700"
+                                    : fee > 0
+                                      ? "text-brand"
+                                      : "text-success"
                               )}
                             >
-                              {waitingForRate
-                                ? "Checking rate..."
-                                : priceUnavailable
-                                  ? "Price unavailable"
-                                  : fee > 0
-                                    ? money(fee).text
-                                    : "Free"}
+                              {/* Once the shipping is inside the price, a
+                                  figure here is simply wrong — it was showing
+                                  the Nigerian flat fee against a Liberian
+                                  address while the summary said Included. */}
+                              {shippingInPrice
+                                ? "Included"
+                                : waitingForRate
+                                  ? "Checking rate..."
+                                  : priceUnavailable
+                                    ? "Price unavailable"
+                                    : fee > 0
+                                      ? money(fee).text
+                                      : "Free"}
                             </span>
-                            {quoted !== null ? (
+                            {quoted !== null && !shippingInPrice ? (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
                                 Live rate
                               </span>
