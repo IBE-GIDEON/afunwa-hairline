@@ -70,9 +70,15 @@ export default function OrderConfirmationPage({
               </span>
             </div>
             <p className="rounded-2xl bg-surface px-4 py-3 text-sm leading-6 text-muted">
+              {/* Card and PayPal fall through to the last branch, so every
+                  card payer was being told to pay the rider on arrival. */}
               {order.paymentMethod === "vendor_transfer"
                 ? "Wait for the seller to confirm the order first. Once they do, you will see their direct payment details inside the order."
-                : "This order is set to pay on delivery. Inspect it first, then pay when it arrives."}
+                : order.paymentMethod === "pay_on_delivery"
+                  ? "This order is set to pay on delivery. Inspect it first, then pay when it arrives."
+                  : order.paymentStatus === "paid_by_card"
+                    ? "Payment received. The seller has been notified and will get your order ready to ship."
+                    : "We are waiting for your payment to confirm. This page updates itself once it clears."}
             </p>
           </div>
         ) : null}

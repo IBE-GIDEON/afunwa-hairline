@@ -191,8 +191,15 @@ export function CheckoutPageClient() {
   const selectedLiveCourier =
     shippingMethod !== "pickup" && shippingMethod !== "local"
   const selectedShippingPending = selectedLiveCourier && quoting
+  // Not when the shipping is already inside the price: deliveryFee is zeroed
+  // there by design, so this test was always true abroad and disabled Confirm
+  // order for every international buyer the moment a courier went quiet.
   const selectedShippingUnavailable =
-    selectedLiveCourier && !quoting && !carrierQuote && deliveryFee <= 0
+    !shippingInPrice &&
+    selectedLiveCourier &&
+    !quoting &&
+    !carrierQuote &&
+    deliveryFee <= 0
   const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
   const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
 

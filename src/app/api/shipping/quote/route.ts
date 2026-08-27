@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, price, weight_kg, vendor_profiles!inner(user_id, store_name, city, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
+      "id, price, weight_kg, vendor_profiles!inner(user_id, store_name, city, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, shipping_zones, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
     )
     .in("id", [...quantities.keys()])
 

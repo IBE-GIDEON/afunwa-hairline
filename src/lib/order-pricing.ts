@@ -77,7 +77,7 @@ export async function priceCart(
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
+      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, shipping_zones, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
     )
     .eq("vendor_profiles.is_active", true)
     .in("id", [...requested.keys()])
@@ -147,6 +147,25 @@ export async function priceCart(
   const zoneShippingIsIncluded = zone !== HOME_ZONE
   const earnedFreeShipping =
     Number.isFinite(freeOver) && freeOver > 0 && baseItemsTotal >= freeOver
+
+  /*
+   * A zone whose rate has never been set would otherwise price at zero and,
+   * because the postage line is also zeroed abroad, ship for nothing. Refusing
+   * the order is the cheaper mistake: the seller loses a sale rather than the
+   * courier fee, and finds out immediately rather than at the end of the month.
+   */
+  if (
+    zoneShippingIsIncluded &&
+    !earnedFreeShipping &&
+    !zoneRates[zone]
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        "We cannot ship to that country yet. Message us on WhatsApp and we will sort it out."
+    }
+  }
 
   const items: OrderItem[] =
     zoneShippingIsIncluded && !earnedFreeShipping
