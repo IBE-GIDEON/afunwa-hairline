@@ -46,6 +46,26 @@ export async function POST(request: Request) {
   const paymentMethod =
     payload.paymentMethod === "vendor_transfer" ? "vendor_transfer" : "pay_on_delivery"
 
+  /*
+   * The same rule /api/orders enforces, and for the same reason: this route
+   * also writes an order with no money behind it, and an international parcel
+   * costs tens of thousands of naira that cannot be recovered.
+   *
+   * Nothing legitimate reaches here from abroad — card checkout needs a
+   * connection, so it is never queued offline — but this route takes a bearer
+   * token and a body, and a rule enforced in one of two places is not a rule.
+   */
+  const destinationCountry = String(
+    payload.shippingDestination?.countryCode ?? ""
+  ).toUpperCase()
+
+  if (destinationCountry && destinationCountry !== "NG") {
+    return NextResponse.json(
+      { error: "Orders outside Nigeria must be paid by card." },
+      { status: 400 }
+    )
+  }
+
   const { error } = await supabase.from("orders").insert({
     buyer_id: user.id,
     vendor_id: priced.vendorId,
