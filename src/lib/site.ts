@@ -62,3 +62,11 @@ export const FOOTER_LINKS: Array<{ label: string; href: string }> = [
   { label: "My orders", href: "/orders" },
   { label: "Account", href: "/profile" }
 ]
+
+/** Policy pages, shown as a quieter row under the main footer links. */
+export const LEGAL_LINKS: Array<{ label: string; href: string }> = [
+  { label: "Terms and Conditions", href: "/terms" },
+  { label: "Privacy Policy", href: "/privacy-policy" },
+  { label: "Delivery Policy", href: "/delivery-policy" },
+  { label: "Refund and Return Policy", href: "/refund-policy" }
+]
