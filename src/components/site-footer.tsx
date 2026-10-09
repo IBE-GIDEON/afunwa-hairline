@@ -8,6 +8,7 @@ import {
   COMPANY_NAME,
   COMPANY_STATS,
   FOOTER_LINKS,
+  LEGAL_LINKS,
   SOCIAL_LINKS
 } from "@/lib/site"
 
@@ -102,6 +103,21 @@ export function SiteFooter() {
           <FiMapPin aria-hidden="true" className="mt-0.5 shrink-0" />
           <span>{COMPANY_ADDRESS}</span>
         </a>
+
+        <nav
+          aria-label="Policies"
+          className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-white/60"
+        >
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="transition hover:text-white"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
 
         <p className="mt-3 text-[11px] leading-5 text-white/45">
           © {year} {COMPANY_NAME}. Wigs, closures, frontals and bundles,

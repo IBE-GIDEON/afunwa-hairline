@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next"
 
 import { getAppUrl } from "@/lib/app-url"
+import { LEGAL_LINKS } from "@/lib/site"
 
 /**
  * Static sitemap — only public pages are listed.
@@ -40,6 +41,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.5
-    }
+    },
+    ...LEGAL_LINKS.map(
+      ({ href }) => ({
+        url: `${base}${href}`,
+        lastModified: now,
+        changeFrequency: "yearly" as const,
+        priority: 0.3
+      })
+    )
   ]
 }
