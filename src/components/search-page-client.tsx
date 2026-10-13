@@ -318,7 +318,6 @@ function ProductSearchCard({ product }: { product: ProductSearchResult }) {
         <PriceTag
           price={product.price}
           compareAtPrice={product.compareAtPrice}
-          weightKg={product.weightKg}
         />
         <p className="text-xs text-muted">Sold by {product.vendor.storeName}</p>
         <div className="flex flex-wrap items-center gap-2">

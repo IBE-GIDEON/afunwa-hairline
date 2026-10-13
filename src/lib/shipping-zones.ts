@@ -71,33 +71,6 @@ export interface ZoneRate {
 
 export type ZoneRates = Partial<Record<ShippingZone, ZoneRate>>
 
-/**
- * What to add to an order going to this zone.
- *
- * Nigeria adds nothing — it keeps the seller's flat delivery fee, unchanged.
- * A zone with no rate set also adds nothing, so an unconfigured shop shows
- * honest prices rather than invented ones.
- */
-export function computeZoneUplift(
-  zone: ShippingZone,
-  weightKg: number,
-  rates: ZoneRates | undefined
-): number {
-  if (zone === HOME_ZONE) return 0
-
-  const rate = rates?.[zone]
-  if (!rate) return 0
-
-  const base = Number(rate.base)
-  const perKg = Number(rate.perKg)
-
-  const safeBase = Number.isFinite(base) && base > 0 ? base : 0
-  const safePerKg = Number.isFinite(perKg) && perKg > 0 ? perKg : 0
-  const safeWeight = Number.isFinite(weightKg) && weightKg > 0 ? weightKg : 0
-
-  return Math.round((safeBase + safePerKg * safeWeight) * 100) / 100
-}
-
 /** Reads whatever is in vendor_profiles.shipping_zones safely. */
 export function parseZoneRates(value: unknown): ZoneRates {
   if (!value || typeof value !== "object") return {}

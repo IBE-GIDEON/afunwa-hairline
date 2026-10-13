@@ -137,7 +137,6 @@ function ProductFeedCard({ product }: { product: ProductSearchResult }) {
         <PriceTag
           price={product.price}
           compareAtPrice={product.compareAtPrice}
-          weightKg={product.weightKg}
         />
 
         <div className="flex flex-wrap items-center gap-2">

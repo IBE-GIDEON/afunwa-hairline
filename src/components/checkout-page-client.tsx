@@ -14,12 +14,7 @@ import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS, paymentMethodsFor } from "@/lib/payment-methods"
 import { amountToFreeDelivery } from "@/lib/delivery"
-import {
-  computeZoneUplift,
-  HOME_ZONE,
-  zoneForCountry,
-  type ZoneRates
-} from "@/lib/shipping-zones"
+import { HOME_ZONE, zoneForCountry } from "@/lib/shipping-zones"
 import {
   DEFAULT_SHIPPING_METHOD,
   isMethodAvailableFor,
@@ -148,34 +143,11 @@ export function CheckoutPageClient() {
     | undefined
   // resolveShippingFee is the same function priceCart runs on the server, so
   // the price on the button is the price charged.
-  /*
-   * The same branch priceCart takes on the server. Outside Nigeria the price
-   * already carries the shipping, so no postage may be added on top — the cart
-   * holds base prices, the cards showed delivered ones, and without this the
-   * two disagree with each other and with what is finally charged.
-   */
-  const zone = zoneForCountry(savedAddress?.country)
-  const shippingInPrice = zone !== HOME_ZONE
-  const zoneRates = vendorData?.vendor.shippingZones as ZoneRates | undefined
-  const freeOver = Number(vendorData?.vendor.freeDeliveryOver ?? 0)
-  const earnedFreeShipping =
-    Number.isFinite(freeOver) && freeOver > 0 && liveSubtotal >= freeOver
-
-  const zoneUplift =
-    shippingInPrice && !earnedFreeShipping
-      ? Math.round(
-          items.reduce((sum, item) => {
-            const product = productMap.get(item.productId)
-            return (
-              sum +
-              computeZoneUplift(zone, Number(product?.weightKg ?? 0), zoneRates) *
-                item.quantity
-            )
-          }, 0) * 100
-        ) / 100
-      : 0
-
-  const itemsTotal = Math.round((liveSubtotal + zoneUplift) * 100) / 100
+  // Outside Nigeria the delivery cost is confirmed with the buyer after they
+  // order, so it is not in the total. Nigeria keeps its flat fee, waived over
+  // the free-delivery amount. The same rule runs on the server in priceCart.
+  const isAbroad = zoneForCountry(savedAddress?.country) !== HOME_ZONE
+  const itemsTotal = Math.round(liveSubtotal * 100) / 100
 
   const flatShippingFee = resolveShippingFee(
     shippingMethod,
@@ -183,7 +155,7 @@ export function CheckoutPageClient() {
     deliveryTerms,
     shippingRates
   )
-  const deliveryFee = shippingInPrice
+  const deliveryFee = isAbroad
     ? 0
     : carrierQuote?.method === shippingMethod
       ? carrierQuote.fee
@@ -191,11 +163,10 @@ export function CheckoutPageClient() {
   const selectedLiveCourier =
     shippingMethod !== "pickup" && shippingMethod !== "local"
   const selectedShippingPending = selectedLiveCourier && quoting
-  // Not when the shipping is already inside the price: deliveryFee is zeroed
-  // there by design, so this test was always true abroad and disabled Confirm
-  // order for every international buyer the moment a courier went quiet.
+  // Not abroad: the delivery cost is confirmed later, so no fee is expected
+  // here, so this test must not disable Confirm order for international buyers.
   const selectedShippingUnavailable =
-    !shippingInPrice &&
+    !isAbroad &&
     selectedLiveCourier &&
     !quoting &&
     !carrierQuote &&
@@ -473,20 +444,18 @@ export function CheckoutPageClient() {
                     needs telling that is what happened, or the missing figure
                     reads as something still to come. Says it once, plainly,
                     before the options rather than after them. */}
-                {shippingInPrice ? (
-                  <div className="rounded-2xl border border-success/30 bg-success/5 p-4">
-                    <p className="text-sm font-semibold text-success">
-                      {deliveryTerms.note?.trim()
-                        ? deliveryTerms.note
-                        : `Shipping to ${
-                            COUNTRIES.find(
-                              (entry) => entry.code === savedAddress?.country
-                            )?.name ?? "your country"
-                          } is already covered`}
+                {isAbroad ? (
+                  <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4">
+                    <p className="text-sm font-semibold text-ink">
+                      Delivery to{" "}
+                      {COUNTRIES.find(
+                        (entry) => entry.code === savedAddress?.country
+                      )?.name ?? "your country"}{" "}
+                      is confirmed separately
                     </p>
                     <p className="mt-1 text-sm leading-6 text-muted">
-                      The prices you saw include delivery. There is nothing
-                      extra to pay for shipping.
+                      Your total is the items only. We will message you the
+                      delivery cost before we dispatch your order.
                     </p>
                   </div>
                 ) : null}
@@ -545,8 +514,8 @@ export function CheckoutPageClient() {
                             <span
                               className={cn(
                                 "text-sm font-semibold",
-                                shippingInPrice
-                                  ? "text-success"
+                                isAbroad
+                                  ? "text-muted"
                                   : priceUnavailable
                                     ? "text-amber-700"
                                     : fee > 0
@@ -558,8 +527,8 @@ export function CheckoutPageClient() {
                                   figure here is simply wrong — it was showing
                                   the Nigerian flat fee against a Liberian
                                   address while the summary said Included. */}
-                              {shippingInPrice
-                                ? "Covered"
+                              {isAbroad
+                                ? "Confirmed later"
                                 : waitingForRate
                                   ? "Checking rate..."
                                   : priceUnavailable
@@ -568,7 +537,7 @@ export function CheckoutPageClient() {
                                       ? money(fee).text
                                       : "Free"}
                             </span>
-                            {quoted !== null && !shippingInPrice ? (
+                            {quoted !== null && !isAbroad ? (
                               <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
                                 Live rate
                               </span>
@@ -723,7 +692,7 @@ export function CheckoutPageClient() {
         <OrderSummary
           itemCount={itemCount}
           itemsTotal={itemsTotal}
-          shippingInPrice={shippingInPrice}
+          isAbroad={isAbroad}
           deliveryFee={deliveryFee}
           shippingPending={selectedShippingPending}
           shippingUnavailable={selectedShippingUnavailable}
@@ -988,7 +957,7 @@ function AddressForm({
 function OrderSummary({
   itemCount,
   itemsTotal,
-  shippingInPrice,
+  isAbroad,
   deliveryFee,
   shippingPending,
   shippingUnavailable,
@@ -1000,8 +969,8 @@ function OrderSummary({
 }: {
   itemCount: number
   itemsTotal: number
-  /** Outside Nigeria the postage is already inside the item prices. */
-  shippingInPrice: boolean
+  /** Outside Nigeria the delivery cost is confirmed after the order. */
+  isAbroad: boolean
   deliveryFee: number
   shippingPending: boolean
   shippingUnavailable: boolean
@@ -1035,11 +1004,10 @@ function OrderSummary({
                   : "text-success"
             )}
           >
-            {/* "Included" rather than "Free": outside Nigeria it is already
-                inside the prices above, and calling that free would be a
-                small lie a buyer could catch. */}
-            {shippingInPrice
-              ? "Covered"
+            {/* Outside Nigeria the cost is confirmed later, so a figure or
+                "Free" here would be wrong. */}
+            {isAbroad
+              ? "Confirmed later"
               : shippingPending
                 ? "Checking"
                 : shippingUnavailable
