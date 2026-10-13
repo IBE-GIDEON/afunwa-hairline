@@ -6,12 +6,7 @@ import {
   type ShippingMethod
 } from "@/lib/shipping"
 import { quoteShipping, totalCartWeight } from "@/lib/shipping-quote"
-import {
-  computeZoneUplift,
-  HOME_ZONE,
-  parseZoneRates,
-  zoneForCountry
-} from "@/lib/shipping-zones"
+import { HOME_ZONE, zoneForCountry } from "@/lib/shipping-zones"
 import { type RateAddress } from "@/lib/shipping-rates"
 import { type OrderItem } from "@/lib/types"
 
@@ -42,7 +37,7 @@ export type PricedCart =
  * both checkout routes run with the service role key, so nothing else would
  * catch it.
  *
- * Shared by /api/orders and /api/flutterwave/initialize so card and transfer
+ * Shared by /api/orders and /api/paystack/initialize so card and transfer
  * checkout can never disagree about what an order is worth.
  */
 export async function priceCart(
@@ -131,59 +126,12 @@ export async function priceCart(
     ) / 100
 
   /*
-   * Outside Nigeria the price a shopper saw already contained the shipping, so
-   * it has to be charged the same way: folded into each line, with no postage
-   * added on top. Adding both would bill the shipping twice.
-   *
-   * The free-over threshold does real work here. A per-unit uplift necessarily
-   * over-recovers on a multi-item order — six wigs in one box do not cost six
-   * base fees to send — and the threshold is what cancels it, at exactly the
-   * basket size where it would start to bite. So the total can come out below
-   * the sum of the prices on the cards, never above.
+   * Product prices are base prices everywhere. Outside Nigeria the delivery
+   * cost is not part of the order total: it is confirmed with the buyer before
+   * dispatch, so nothing is charged for it here.
    */
-  const zone = zoneForCountry(destination?.countryCode)
-  const zoneRates = parseZoneRates(vendor?.shipping_zones)
-  const freeOver = Number(vendor?.free_delivery_over ?? 0)
-  const zoneShippingIsIncluded = zone !== HOME_ZONE
-  const earnedFreeShipping =
-    Number.isFinite(freeOver) && freeOver > 0 && baseItemsTotal >= freeOver
-
-  /*
-   * A zone whose rate has never been set would otherwise price at zero and,
-   * because the postage line is also zeroed abroad, ship for nothing. Refusing
-   * the order is the cheaper mistake: the seller loses a sale rather than the
-   * courier fee, and finds out immediately rather than at the end of the month.
-   */
-  if (
-    zoneShippingIsIncluded &&
-    !earnedFreeShipping &&
-    !zoneRates[zone]
-  ) {
-    return {
-      ok: false,
-      status: 400,
-      error:
-        "We cannot ship to that country yet. Message us on WhatsApp and we will sort it out."
-    }
-  }
-
-  const items: OrderItem[] =
-    zoneShippingIsIncluded && !earnedFreeShipping
-      ? rows.map((row) => {
-          const productId = String(row.id)
-          const uplift = computeZoneUplift(
-            zone,
-            Number((row as { weight_kg?: unknown }).weight_kg ?? 0),
-            zoneRates
-          )
-          return {
-            productId,
-            name: String(row.name),
-            price: Math.round((Number(row.price) + uplift) * 100) / 100,
-            quantity: requested.get(productId) as number
-          }
-        })
-      : baseItems
+  const isAbroad = zoneForCountry(destination?.countryCode) !== HOME_ZONE
+  const items: OrderItem[] = baseItems
 
   // numeric(12,2) in Postgres — settle the rounding here rather than let the
   // database truncate a floating point tail.
@@ -231,11 +179,11 @@ export async function priceCart(
     destination: destination ?? null
   })
 
-  // Either the uplift or a postage line, never both.
-  const deliveryFee = zoneShippingIsIncluded ? 0 : shipping.fee
+  // Abroad the cost is confirmed with the buyer later, so nothing is added here.
+  const deliveryFee = isAbroad ? 0 : shipping.fee
 
   if (
-    !zoneShippingIsIncluded &&
+    !isAbroad &&
     shippingMethod !== "pickup" &&
     shippingMethod !== "local" &&
     deliveryFee <= 0

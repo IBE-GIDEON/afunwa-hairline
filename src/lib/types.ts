@@ -28,8 +28,7 @@ export type OrderArchiveActor = "buyer" | "seller"
 export type PaymentMethod =
   | "pay_on_delivery"
   | "vendor_transfer"
-  | "flutterwave"
-  | "paypal"
+  | "paystack"
 export type PaymentStatus =
   | "awaiting_seller_confirmation"
   | "pay_on_delivery"

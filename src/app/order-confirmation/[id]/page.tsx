@@ -70,8 +70,8 @@ export default function OrderConfirmationPage({
               </span>
             </div>
             <p className="rounded-2xl bg-surface px-4 py-3 text-sm leading-6 text-muted">
-              {/* Card and PayPal fall through to the last branch, so every
-                  card payer was being told to pay the rider on arrival. */}
+              {/* Card falls through to the last branch, so every card payer
+                  was being told to pay the rider on arrival. */}
               {order.paymentMethod === "vendor_transfer"
                 ? "Wait for the seller to confirm the order first. Once they do, you will see their direct payment details inside the order."
                 : order.paymentMethod === "pay_on_delivery"

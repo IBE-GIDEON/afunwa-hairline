@@ -1,5 +1,6 @@
 "use client"
 
+import { ImageViewer, viewableImages } from "@/components/image-viewer"
 import { useEffect, useMemo, useRef, useState } from "react"
 import toast from "react-hot-toast"
 import { FiMessageCircle, FiShare2, FiStar } from "react-icons/fi"
@@ -60,6 +61,8 @@ export function VendorStoreClient({
 
     window.history.replaceState(window.history.state, "", url.toString())
   }
+
+  const [viewer, setViewer] = useState<{ images: string[]; index: number; alt: string } | null>(null)
 
   const openProduct = (product: Product) => {
     setSelectedProduct(product)
@@ -213,13 +216,25 @@ export function VendorStoreClient({
             {data.products.map((product) => {
               const primaryImage = getPrimaryProductImage(product)
               return (
-                <button
+                <div
                   key={product.id}
-                  className="overflow-hidden rounded-[22px] bg-surface text-left shadow-soft transition active:scale-[0.99]"
-                  onClick={() => openProduct(product)}
+                  className="overflow-hidden rounded-[22px] bg-surface text-left shadow-soft transition"
                 >
                   {/* Image + stock overlay */}
-                  <div className="relative aspect-square overflow-hidden bg-canvas">
+                  <button
+                    type="button"
+                    aria-label={`View ${product.name} full screen`}
+                    onClick={() =>
+                      setViewer({
+                        images: viewableImages(
+                          product.photoUrls?.length ? product.photoUrls : [primaryImage]
+                        ),
+                        index: 0,
+                        alt: product.name
+                      })
+                    }
+                    className="relative block aspect-square w-full overflow-hidden bg-canvas"
+                  >
                     <RemoteImage
                       src={primaryImage}
                       alt={product.name}
@@ -248,10 +263,14 @@ export function VendorStoreClient({
                         +{product.photoUrls.length - 1}
                       </span>
                     ) : null}
-                  </div>
+                  </button>
 
                   {/* Card body — name + price only, always same height */}
-                  <div className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => openProduct(product)}
+                    className="block w-full p-3 text-left"
+                  >
                     <p className="line-clamp-2 text-sm font-semibold leading-5 text-ink">
                       {product.name}
                     </p>
@@ -259,13 +278,20 @@ export function VendorStoreClient({
                       className="mt-1.5"
                       price={product.price}
                       compareAtPrice={product.compareAtPrice}
-                      weightKg={product.weightKg}
                     />
-                  </div>
-                </button>
+                  </button>
+                </div>
               )
             })}
           </div>
+          {viewer ? (
+            <ImageViewer
+              images={viewer.images}
+              startIndex={viewer.index}
+              alt={viewer.alt}
+              onClose={() => setViewer(null)}
+            />
+          ) : null}
         </div>
 
         <div>
@@ -326,11 +352,25 @@ export function VendorStoreClient({
               <div className="relative aspect-square overflow-hidden rounded-[24px] bg-canvas">
                 {selectedProductImages[selectedImageIndex] ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={selectedProductImages[selectedImageIndex]}
-                    alt={selectedProduct.name}
-                    className="h-full w-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    aria-label="View photo full screen"
+                    onClick={() =>
+                      setViewer({
+                        images: selectedProductImages,
+                        index: selectedImageIndex,
+                        alt: selectedProduct.name
+                      })
+                    }
+                    className="block h-full w-full"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedProductImages[selectedImageIndex]}
+                      alt={selectedProduct.name}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs font-medium text-muted">
                     No photo
@@ -382,7 +422,6 @@ export function VendorStoreClient({
                 showBadge
                 price={selectedProduct.price}
                 compareAtPrice={selectedProduct.compareAtPrice}
-                weightKg={selectedProduct.weightKg}
               />
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
                 <span className="rounded-full bg-canvas px-2.5 py-1 font-medium">

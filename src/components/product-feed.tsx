@@ -1,7 +1,8 @@
 "use client"
 
+import { ImageViewer, viewableImages } from "@/components/image-viewer"
 import Link from "next/link"
-import { type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 
 import { RemoteImage } from "@/components/remote-image"
 import { Badge, StarRating } from "@/components/ui"
@@ -85,12 +86,19 @@ export function ProductFeed({
 function ProductFeedCard({ product }: { product: ProductSearchResult }) {
   const primaryImage = getPrimaryProductImage(product)
 
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const viewerImages = viewableImages(
+    product.photoUrls?.length ? product.photoUrls : [primaryImage]
+  )
+
   return (
-    <Link
-      href={`/vendor/${product.vendor.id}?product=${product.id}`}
-      className="overflow-hidden rounded-[24px] border border-border/70 bg-surface text-left transition hover:bg-surface/90 active:scale-[0.99]"
-    >
-      <div className="relative aspect-square overflow-hidden bg-canvas">
+    <div className="overflow-hidden rounded-[24px] border border-border/70 bg-surface text-left transition hover:bg-surface/90 active:scale-[0.99]">
+      <button
+        type="button"
+        onClick={() => viewerImages.length > 0 && setViewerOpen(true)}
+        aria-label={`View ${product.name} full screen`}
+        className="relative block aspect-square w-full overflow-hidden bg-canvas"
+      >
         {primaryImage ? (
           <RemoteImage
             src={primaryImage}
@@ -125,9 +133,12 @@ function ProductFeedCard({ product }: { product: ProductSearchResult }) {
             +{product.photoUrls.length - 1}
           </span>
         ) : null}
-      </div>
+      </button>
 
-      <div className="space-y-2 p-3">
+      <Link
+        href={`/vendor/${product.vendor.id}?product=${product.id}`}
+        className="block space-y-2 p-3"
+      >
         <p className="truncate text-[11px] font-medium uppercase tracking-[0.08em] text-muted">
           {product.vendor.storeName}
         </p>
@@ -137,7 +148,6 @@ function ProductFeedCard({ product }: { product: ProductSearchResult }) {
         <PriceTag
           price={product.price}
           compareAtPrice={product.compareAtPrice}
-          weightKg={product.weightKg}
         />
 
         <div className="flex flex-wrap items-center gap-2">
@@ -155,7 +165,14 @@ function ProductFeedCard({ product }: { product: ProductSearchResult }) {
             <span className="text-[11px] font-medium text-muted">New</span>
           )}
         </div>
-      </div>
-    </Link>
+      </Link>
+      {viewerOpen ? (
+        <ImageViewer
+          images={viewerImages}
+          alt={product.name}
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
+    </div>
   )
 }

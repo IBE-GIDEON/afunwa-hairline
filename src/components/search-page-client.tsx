@@ -1,5 +1,6 @@
 "use client"
 
+import { ImageViewer, viewableImages } from "@/components/image-viewer"
 import Link from "next/link"
 import { useDeferredValue, useEffect, useRef, useState } from "react"
 import { FiChevronRight, FiMapPin, FiSearch } from "react-icons/fi"
@@ -293,12 +294,19 @@ export function SearchPageClient({
 function ProductSearchCard({ product }: { product: ProductSearchResult }) {
   const primaryImage = getPrimaryProductImage(product)
 
+  const [viewerOpen, setViewerOpen] = useState(false)
+  const viewerImages = viewableImages(
+    product.photoUrls?.length ? product.photoUrls : [primaryImage]
+  )
+
   return (
-    <Link
-      href={`/vendor/${product.vendor.id}?product=${product.id}`}
-      className="overflow-hidden rounded-[22px] border border-border/70 bg-surface text-left transition hover:bg-canvas"
-    >
-      <div className="relative aspect-square overflow-hidden bg-canvas">
+    <div className="overflow-hidden rounded-[22px] border border-border/70 bg-surface text-left transition hover:bg-canvas">
+      <button
+        type="button"
+        onClick={() => viewerImages.length > 0 && setViewerOpen(true)}
+        aria-label={`View ${product.name} full screen`}
+        className="relative block aspect-square w-full overflow-hidden bg-canvas"
+      >
         {primaryImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -312,13 +320,15 @@ function ProductSearchCard({ product }: { product: ProductSearchResult }) {
             +{product.photoUrls.length - 1}
           </span>
         ) : null}
-      </div>
-      <div className="space-y-2 p-3">
+      </button>
+      <Link
+        href={`/vendor/${product.vendor.id}?product=${product.id}`}
+        className="block space-y-2 p-3"
+      >
         <p className="line-clamp-2 text-sm font-semibold text-ink">{product.name}</p>
         <PriceTag
           price={product.price}
           compareAtPrice={product.compareAtPrice}
-          weightKg={product.weightKg}
         />
         <p className="text-xs text-muted">Sold by {product.vendor.storeName}</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -336,8 +346,15 @@ function ProductSearchCard({ product }: { product: ProductSearchResult }) {
             {product.inStock ? "In stock" : "Out of stock"}
           </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+      {viewerOpen ? (
+        <ImageViewer
+          images={viewerImages}
+          alt={product.name}
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
+    </div>
   )
 }
 

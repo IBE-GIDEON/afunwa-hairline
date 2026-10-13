@@ -2590,18 +2590,16 @@ export async function getAccessToken(): Promise<string | null> {
 }
 
 /**
- * Starts a Flutterwave checkout and returns the URL to send the buyer to.
+ * Starts a Paystack checkout and returns the URL to send the buyer to.
  *
  * No retry: this creates an order row, and a retried POST would create a second
  * one for the same cart.
  */
 export async function startCardCheckout(
-  payload: CheckoutPayload,
-  /** Which hosted checkout to open. Both return the same shape. */
-  provider: "flutterwave" | "paypal" = "flutterwave"
+  payload: CheckoutPayload
 ): Promise<{ checkoutUrl: string; orderId: string }> {
   const token = await getAccessToken()
-  const response = await fetch(`/api/${provider}/initialize`, {
+  const response = await fetch("/api/paystack/initialize", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -95,14 +95,10 @@ export const PAYMENT_METHOD_META: Record<
     label: "Bank Transfer",
     helper: "Send the money to the account shown, then place your order."
   },
-  flutterwave: {
+  paystack: {
     label: "Card or bank transfer",
     helper:
-      "Pay by card, bank transfer or USSD. Confirmed automatically — no waiting for the seller."
-  },
-  paypal: {
-    label: "PayPal",
-    helper: "Pay with your PayPal balance or a card, charged in US dollars."
+      "Pay by card, bank transfer or USSD. Confirmed automatically, with no waiting for the seller."
   }
 }
 
@@ -153,8 +149,11 @@ export function normalizeOrderStatus(value: unknown): OrderStatus {
 
 export function normalizePaymentMethod(value: unknown): PaymentMethod {
   if (value === "vendor_transfer") return "vendor_transfer"
-  // Legacy rows written before the move to Flutterwave.
-  if (value === "flutterwave" || value === "paystack") return "flutterwave"
+  // Legacy rows: "flutterwave" was card checkout before Paystack, and "paypal"
+  // rows were never captured, so they are shown as the card route they used.
+  if (value === "paystack" || value === "flutterwave" || value === "paypal") {
+    return "paystack"
+  }
   return "pay_on_delivery"
 }
 
@@ -181,7 +180,7 @@ export function normalizePaymentStatus(
     return paymentMethod === "vendor_transfer" ? "paid_to_vendor" : "pay_on_delivery"
   }
 
-  if (paymentMethod === "flutterwave") return "awaiting_card_payment"
+  if (paymentMethod === "paystack") return "awaiting_card_payment"
 
   return paymentMethod === "vendor_transfer"
     ? "awaiting_seller_confirmation"

@@ -34,7 +34,7 @@ export default function DeliveryPolicyPage() {
         {
           heading: "Delivery charges",
           body: [
-            "Delivery charges depend on your location, the package size or weight, the delivery method, the courier and, for international orders, the destination. We will tell you the charge before you complete your order. Delivery charges are separate from the product price unless we say otherwise."
+            "Within Nigeria, delivery is a flat charge set by the seller. It is shown before you pay, and it is waived once your order reaches the free-delivery amount. Delivery charges are separate from the product price."
           ]
         },
         {
@@ -64,7 +64,7 @@ export default function DeliveryPolicyPage() {
         {
           heading: "International deliveries",
           body: [
-            "International orders may attract extra charges depending on the destination. Unless we agree otherwise, you may have to pay customs duties, import charges, taxes or other fees set by the destination country. Customs clearance can also make delivery take longer."
+            "For international orders, the delivery cost is not included in your total. We will confirm it with you on WhatsApp or email before we dispatch, based on the destination and courier. Unless we agree otherwise, you may also have to pay customs duties, import charges, taxes or other fees set by the destination country. Customs clearance can also make delivery take longer."
           ]
         },
         {

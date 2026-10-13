@@ -353,7 +353,7 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
     order.paymentStatus !== "paid_to_vendor"
   // Dispatch means the money question is settled: paid on the card, paid into
   // the account and confirmed, or due on delivery. paid_by_card was missing
-  // here, so a card order that Flutterwave had already settled showed as Paid
+  // here, so a card order that Paystack had already settled showed as Paid
   // with no way to send it.
   const sellerCanDispatch =
     isSeller &&

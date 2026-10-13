@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server"
 
 import { getAppUrl } from "@/lib/app-url"
-import { hasFlutterwave, hasSupabaseAdmin } from "@/lib/env"
-import { createFlutterwavePayment } from "@/lib/flutterwave"
+import { hasPaystack, hasSupabaseAdmin } from "@/lib/env"
 import { priceCart, toRateAddress } from "@/lib/order-pricing"
+import { initializePaystackTransaction } from "@/lib/paystack"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
 import { type CheckoutPayload } from "@/lib/types"
 import { createPaymentReference } from "@/lib/utils"
 
 /**
- * Flutterwave card checkout.
+ * Paystack card and bank transfer checkout.
  *
  * The amount charged is priced from the products table, never from the request,
  * or a buyer could pay one naira for anything in the shop.
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     )
   }
 
-  if (!hasFlutterwave) {
+  if (!hasPaystack) {
     return NextResponse.json(
       { error: "Card checkout is not available yet." },
       { status: 503 }
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: priced.error }, { status: priced.status })
   }
 
-  const txRef = createPaymentReference()
+  const reference = createPaymentReference()
 
   const { data: order, error } = await supabase
     .from("orders")
@@ -79,57 +79,49 @@ export async function POST(request: Request) {
       shipping_method: priced.shippingMethod,
       shipping_quote_source: priced.shippingQuoteSource,
       delivery_address: deliveryAddress,
-      payment_method: "flutterwave",
-      // Not paid until the webhook confirms it against Flutterwave.
+      payment_method: "paystack",
+      // Not paid until the webhook confirms it against Paystack.
       payment_status: "awaiting_card_payment",
       status: "pending",
-      payment_reference: txRef
+      payment_reference: reference
     })
     .select()
     .single()
 
   if (error || !order) {
-    // Never echo Postgres errors back to the buyer.
-    console.error("Flutterwave order insert failed", error?.message)
+    // Never echo database errors back to the buyer.
+    console.error("Paystack order insert failed", error?.message)
     return NextResponse.json(
       { error: "We could not start this checkout. Please try again." },
       { status: 500 }
     )
   }
 
-  const { data: buyer } = await supabase
-    .from("users")
-    .select("full_name, phone")
-    .eq("id", user.id)
-    .maybeSingle()
-
   try {
-    const { checkoutUrl } = await createFlutterwavePayment({
-      // Naira, not kobo — Flutterwave takes the major unit.
+    const { checkoutUrl } = await initializePaystackTransaction({
+      // Naira here. initializePaystackTransaction converts to kobo.
       amount: priced.totalAmount,
       email: user.email ?? `buyer-${user.id.slice(0, 8)}@afunwa.example`,
-      name: buyer?.full_name ? String(buyer.full_name) : undefined,
-      phone: buyer?.phone ? String(buyer.phone) : undefined,
-      txRef,
+      reference,
       // getAppUrl, not env.appUrl: resolves from the deployment itself, so a
       // missing NEXT_PUBLIC_APP_URL cannot strand a paying customer.
-      redirectUrl: `${getAppUrl()}/order-confirmation/${order.id}`,
-      meta: {
+      callbackUrl: `${getAppUrl()}/order-confirmation/${order.id}`,
+      metadata: {
         order_id: order.id,
         vendor_id: priced.vendorId,
         buyer_id: user.id
       }
     })
 
-    return NextResponse.json({ checkoutUrl, orderId: order.id, reference: txRef })
-  } catch (flutterwaveError) {
-    // The order row exists but nothing can pay it — cancel rather than leave
+    return NextResponse.json({ checkoutUrl, orderId: order.id, reference })
+  } catch (paystackError) {
+    // The order row exists but nothing can pay it. Cancel rather than leave
     // the seller an order no one can settle.
     await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id)
 
-    console.error("Flutterwave initialize failed", flutterwaveError)
+    console.error("Paystack initialize failed", paystackError)
     return NextResponse.json(
-      { error: "Card checkout could not be started. Try another payment method." },
+      { error: "Card checkout could not be started. Try again in a moment." },
       { status: 502 }
     )
   }
