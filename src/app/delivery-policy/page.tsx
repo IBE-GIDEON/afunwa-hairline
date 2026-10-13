@@ -34,7 +34,7 @@ export default function DeliveryPolicyPage() {
         {
           heading: "Delivery charges",
           body: [
-            "Within Nigeria, delivery is a flat charge set by the seller. It is shown before you pay, and it is waived once your order reaches the free-delivery amount. Delivery charges are separate from the product price."
+            "Within Nigeria, delivery is a flat charge set by us. It is shown before you pay, and it is waived once your order reaches the free-delivery amount. Delivery charges are separate from the product price."
           ]
         },
         {

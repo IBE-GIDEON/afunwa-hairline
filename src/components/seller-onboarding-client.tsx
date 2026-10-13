@@ -24,7 +24,6 @@ import {
 } from "@/lib/product-categories"
 import { uploadImage, uploadImages } from "@/lib/image"
 import { saveProduct, saveSellerProfile } from "@/lib/marketplace"
-import { HOME_ZONE, SHIPPING_ZONES } from "@/lib/shipping-zones"
 import { type VendorCategory } from "@/lib/types"
 
 const MAX_PRODUCT_IMAGES = 6
@@ -54,36 +53,6 @@ export function SellerOnboardingClient() {
   const [accountName, setAccountName] = useState(vendorProfile?.accountName ?? "")
   const [accountNumber, setAccountNumber] = useState(vendorProfile?.accountNumber ?? "")
   const [paymentNote, setPaymentNote] = useState(vendorProfile?.paymentNote ?? "")
-  const [deliveryFee, setDeliveryFee] = useState(
-    vendorProfile?.deliveryFee ? String(vendorProfile.deliveryFee) : ""
-  )
-  const [freeDeliveryOver, setFreeDeliveryOver] = useState(
-    vendorProfile?.freeDeliveryOver ? String(vendorProfile.freeDeliveryOver) : ""
-  )
-  const [deliveryNote, setDeliveryNote] = useState(vendorProfile?.deliveryNote ?? "")
-  // Two boxes per zone, as typed. Blank means that zone adds nothing.
-  const [zoneRates, setZoneRates] = useState<
-    Record<string, { base: string; perKg: string }>
-  >(() =>
-    Object.fromEntries(
-      SHIPPING_ZONES.filter((zone) => zone.id !== HOME_ZONE).map((zone) => {
-        const saved = vendorProfile?.shippingZones?.[zone.id]
-        return [
-          zone.id,
-          {
-            base: saved?.base ? String(saved.base) : "",
-            perKg: saved?.perKg ? String(saved.perKg) : ""
-          }
-        ]
-      })
-    )
-  )
-  const [originCity, setOriginCity] = useState(vendorProfile?.originCity ?? "")
-  const [originState, setOriginState] = useState(vendorProfile?.originState ?? "")
-  const [originAddress, setOriginAddress] = useState(vendorProfile?.originAddress ?? "")
-  const [defaultItemWeight, setDefaultItemWeight] = useState(
-    vendorProfile?.defaultItemWeightKg ? String(vendorProfile.defaultItemWeightKg) : ""
-  )
   const [productName, setProductName] = useState("")
   const [productCategory, setProductCategory] = useState<ProductCategory>(
     DEFAULT_PRODUCT_CATEGORY
@@ -250,138 +219,6 @@ export function SellerOnboardingClient() {
               />
             </div>
 
-            {/* Whatever is set here is what checkout quotes AND what the buyer
-                is charged — the server prices delivery from these same
-                numbers, so the two can never disagree. */}
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-semibold text-ink">Shipping</p>
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  Set the delivery fee buyers see for local and courier
-                  delivery.
-                </p>
-              </div>
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                placeholder="Shipping fee (₦)"
-                value={deliveryFee}
-                onChange={(event) => setDeliveryFee(event.target.value)}
-              />
-              <Input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                placeholder="Free shipping on orders over (₦) — optional"
-                value={freeDeliveryOver}
-                onChange={(event) => setFreeDeliveryOver(event.target.value)}
-              />
-              <Input
-                placeholder="Shipping promise, e.g. 2 to 4 working days nationwide"
-                value={deliveryNote}
-                onChange={(event) => setDeliveryNote(event.target.value)}
-              />
-
-              {/* Outside Nigeria the shipping goes into the price itself, so
-                  these are what a buyer abroad actually sees added. Two boxes
-                  because a 0.2kg closure and a 3kg bundle order do not cost
-                  the same to send. */}
-              <div className="space-y-3 border-t border-border pt-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">
-                    International pricing
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Added into the price a buyer abroad sees, so their checkout
-                    says shipping is free. Leave a zone blank and it adds
-                    nothing. Use Shipping Check to get real numbers first.
-                  </p>
-                </div>
-
-                {SHIPPING_ZONES.filter((zone) => zone.id !== HOME_ZONE).map(
-                  (zone) => (
-                    <div key={zone.id}>
-                      <p className="text-xs font-medium text-ink">
-                        {zone.label}
-                        <span className="ml-1 font-normal text-muted">
-                          {zone.description}
-                        </span>
-                      </p>
-                      <div className="mt-1 grid grid-cols-2 gap-2">
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          placeholder="Base (₦)"
-                          value={zoneRates[zone.id]?.base ?? ""}
-                          onChange={(event) =>
-                            setZoneRates((current) => ({
-                              ...current,
-                              [zone.id]: {
-                                base: event.target.value,
-                                perKg: current[zone.id]?.perKg ?? ""
-                              }
-                            }))
-                          }
-                        />
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          placeholder="Per kg (₦)"
-                          value={zoneRates[zone.id]?.perKg ?? ""}
-                          onChange={(event) =>
-                            setZoneRates((current) => ({
-                              ...current,
-                              [zone.id]: {
-                                base: current[zone.id]?.base ?? "",
-                                perKg: event.target.value
-                              }
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-
-              {/* Pickup details and weights make Shipbubble quotes more
-                  accurate. The store city and launch weight cover old stores. */}
-              <div className="space-y-3 border-t border-border pt-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Pickup address</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">
-                    Used for Shipbubble live courier rates and pickup.
-                  </p>
-                </div>
-                <Input
-                  placeholder="Street address"
-                  value={originAddress}
-                  onChange={(event) => setOriginAddress(event.target.value)}
-                />
-                <Input
-                  placeholder="City"
-                  value={originCity}
-                  onChange={(event) => setOriginCity(event.target.value)}
-                />
-                <Input
-                  placeholder="State"
-                  value={originState}
-                  onChange={(event) => setOriginState(event.target.value)}
-                />
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="0.01"
-                  placeholder="Default item weight in kg"
-                  value={defaultItemWeight}
-                  onChange={(event) => setDefaultItemWeight(event.target.value)}
-                />
-              </div>
-            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Button variant="secondary" onClick={() => setStep(1)}>
@@ -575,31 +412,6 @@ export function SellerOnboardingClient() {
                     accountName: accountName.trim() || undefined,
                     accountNumber: accountNumber.trim() || undefined,
                     paymentNote: paymentNote.trim() || undefined,
-                    deliveryFee: Number(deliveryFee) > 0 ? Number(deliveryFee) : 0,
-                    shippingZones: Object.fromEntries(
-                      Object.entries(zoneRates)
-                        .map(([id, pair]) => [
-                          id,
-                          {
-                            base: Number(pair.base) > 0 ? Number(pair.base) : 0,
-                            perKg: Number(pair.perKg) > 0 ? Number(pair.perKg) : 0
-                          }
-                        ])
-                        // A zone with nothing in either box is not a rate.
-                        .filter(([, rate]) => {
-                          const entry = rate as { base: number; perKg: number }
-                          return entry.base > 0 || entry.perKg > 0
-                        })
-                    ),
-                    freeDeliveryOver:
-                      Number(freeDeliveryOver) > 0 ? Number(freeDeliveryOver) : undefined,
-                    deliveryNote: deliveryNote.trim() || undefined,
-                    originAddress: originAddress.trim() || undefined,
-                    originCity: originCity.trim() || undefined,
-                    originState: originState.trim() || undefined,
-                    defaultItemWeightKg:
-                      Number(defaultItemWeight) > 0 ? Number(defaultItemWeight) : undefined,
-                    shippingRates: {}
                   })
 
                   if (savingProduct) {

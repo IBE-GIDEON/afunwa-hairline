@@ -19,22 +19,6 @@ export const env = {
   supportWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "",
   enablePayOnDelivery: process.env.NEXT_PUBLIC_ENABLE_PAY_ON_DELIVERY === "true",
 
-  // Carrier rate APIs. Server-side only, every one of them — a courier key in
-  // the browser bundle is anyone's to spend.
-  dhlApiKey: process.env.DHL_API_KEY ?? "",
-  dhlApiSecret: process.env.DHL_API_SECRET ?? "",
-  dhlAccountNumber: process.env.DHL_ACCOUNT_NUMBER ?? "",
-  /** DHL ships a sandbox; point at it while testing credentials. */
-  dhlUseTestEnvironment: process.env.DHL_TEST_MODE === "true",
-  topshipApiKey: process.env.TOPSHIP_API_KEY ?? "",
-  gigApiKey: process.env.GIG_API_KEY ?? "",
-  shipbubbleApiKey: process.env.SHIPBUBBLE_API_KEY ?? "",
-  shipbubbleBaseUrl: process.env.SHIPBUBBLE_API_BASE_URL ?? "",
-  shipbubbleCategoryId: process.env.SHIPBUBBLE_CATEGORY_ID ?? "",
-  shipbubbleSenderName: process.env.SHIPBUBBLE_SENDER_NAME ?? "",
-  shipbubbleSenderEmail: process.env.SHIPBUBBLE_SENDER_EMAIL ?? "",
-  shipbubbleSenderPhone: process.env.SHIPBUBBLE_SENDER_PHONE ?? "",
-  shippingDefaultItemWeightKg: process.env.SHIPPING_DEFAULT_ITEM_WEIGHT_KG ?? "1"
 }
 
 export const hasSupabase =
