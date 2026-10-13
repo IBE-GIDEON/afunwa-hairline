@@ -16,7 +16,7 @@ begin;
 --    enabled — money that never moved.
 --
 --    Nothing in the app inserts an order from the browser. Every real checkout
---    goes through /api/orders, /api/orders/sync or /api/flutterwave/initialize,
+--    goes through /api/orders, /api/orders/sync or /api/paystack/initialize,
 --    all of which use the service role and bypass RLS. The policy was pure
 --    attack surface.
 -- ---------------------------------------------------------------------------

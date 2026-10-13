@@ -2,10 +2,11 @@ export const env = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-  flutterwavePublicKey: process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY ?? "",
-  flutterwaveSecretKey: process.env.FLUTTERWAVE_SECRET_KEY ?? "",
-  // Set the same value in the Flutterwave dashboard under Webhooks.
-  flutterwaveSecretHash: process.env.FLUTTERWAVE_SECRET_HASH ?? "",
+  // Public key only decides whether the option is offered. The browser cannot
+  // see server-only variables, so this is the one the checkout page can read.
+  paystackPublicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? "",
+  // Server-side only. Also used to verify webhook signatures.
+  paystackSecretKey: process.env.PAYSTACK_SECRET_KEY ?? "",
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? "",
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? "",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
@@ -33,16 +34,7 @@ export const env = {
   shipbubbleSenderName: process.env.SHIPBUBBLE_SENDER_NAME ?? "",
   shipbubbleSenderEmail: process.env.SHIPBUBBLE_SENDER_EMAIL ?? "",
   shipbubbleSenderPhone: process.env.SHIPBUBBLE_SENDER_PHONE ?? "",
-  shippingDefaultItemWeightKg: process.env.SHIPPING_DEFAULT_ITEM_WEIGHT_KG ?? "1",
-
-  // PayPal. Server-side only; the client id is not secret but there is no
-  // reason to ship it when every call is made from here anyway.
-  paypalClientId: process.env.PAYPAL_CLIENT_ID ?? "",
-  paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET ?? "",
-  /** "live" or "sandbox". Anything but sandbox means live. */
-  paypalEnvironment: process.env.PAYPAL_ENVIRONMENT ?? "live",
-  /** From the webhook you create in the PayPal dashboard. */
-  paypalWebhookId: process.env.PAYPAL_WEBHOOK_ID ?? ""
+  shippingDefaultItemWeightKg: process.env.SHIPPING_DEFAULT_ITEM_WEIGHT_KG ?? "1"
 }
 
 export const hasSupabase =
@@ -51,11 +43,15 @@ export const hasSupabase =
 export const hasSupabaseAdmin =
   hasSupabase && Boolean(env.supabaseServiceRoleKey)
 
-export const hasFlutterwave =
-  Boolean(env.flutterwavePublicKey) && Boolean(env.flutterwaveSecretKey)
+/** Server-side: the secret is required to actually take a payment. */
+export const hasPaystack = Boolean(env.paystackSecretKey)
 
-export const hasPayPal =
-  Boolean(env.paypalClientId) && Boolean(env.paypalClientSecret)
+/**
+ * Client-readable: whether the card option is offered at checkout. Only the
+ * public key can be checked here, so set PAYSTACK_SECRET_KEY in production too,
+ * or the option shows and every checkout fails.
+ */
+export const hasPaystackCheckout = Boolean(env.paystackPublicKey)
 
 export const hasWebPush =
   Boolean(env.vapidPublicKey) && Boolean(env.vapidPrivateKey)

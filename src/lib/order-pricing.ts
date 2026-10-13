@@ -42,7 +42,7 @@ export type PricedCart =
  * both checkout routes run with the service role key, so nothing else would
  * catch it.
  *
- * Shared by /api/orders and /api/flutterwave/initialize so card and transfer
+ * Shared by /api/orders and /api/paystack/initialize so card and transfer
  * checkout can never disagree about what an order is worth.
  */
 export async function priceCart(
