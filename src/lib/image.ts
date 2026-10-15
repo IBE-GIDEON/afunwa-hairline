@@ -15,6 +15,9 @@ const GENERAL_PHOTO = { maxWidthOrHeight: 800, maxSizeMB: 0.4 }
 const UNSUPPORTED_PHOTO =
   "That photo could not be read. Use a JPG or PNG. On an iPhone, set Camera > Formats to Most Compatible."
 
+const SHOWABLE_TYPES = ["image/jpeg", "image/png", "image/webp"]
+const MAX_ORIGINAL_BYTES = 10 * 1024 * 1024
+
 function sizeFor(folder: string) {
   return folder === "product-photos" ? PRODUCT_PHOTO : GENERAL_PHOTO
 }
@@ -29,8 +32,12 @@ export async function compressImage(file: File, folder = "") {
       useWebWorker: true
     })
   } catch {
-    // Browsers cannot decode HEIC and some other formats. Saying so beats
-    // uploading a file that no customer's browser can show.
+    // A JPEG, PNG or WebP the compressor could not handle is still a usable
+    // photo, so it goes up as it is. Anything else (HEIC, for one) is refused:
+    // no customer's browser can show it.
+    if (SHOWABLE_TYPES.includes(file.type) && file.size <= MAX_ORIGINAL_BYTES) {
+      return file
+    }
     throw new Error(UNSUPPORTED_PHOTO)
   }
 }
@@ -70,7 +77,9 @@ export async function uploadImage(file: File, folder: string) {
     .upload(path, compressed, {
       // Names are unique per upload, so a browser or CDN may keep them for a year.
       cacheControl: "31536000",
-      upsert: true
+      // A plain insert. Names are unique, and upsert also needs update rights
+      // on the bucket, which sellers do not have.
+      upsert: false
     })
 
   if (error) {
