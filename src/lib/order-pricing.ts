@@ -1,14 +1,17 @@
 import { type SupabaseClient } from "@supabase/supabase-js"
 
+import { deliveryQuote } from "@/lib/delivery"
 import {
   isMethodAvailableFor,
   normalizeShippingMethod,
   type ShippingMethod
 } from "@/lib/shipping"
-import { quoteShipping, totalCartWeight } from "@/lib/shipping-quote"
-import { HOME_ZONE, zoneForCountry } from "@/lib/shipping-zones"
-import { type RateAddress } from "@/lib/shipping-rates"
 import { type OrderItem } from "@/lib/types"
+
+/** Where the order is going. Only the country changes the price. */
+export interface DeliveryDestination {
+  countryCode: string
+}
 
 export type PricedCart =
   | {
@@ -21,8 +24,8 @@ export type PricedCart =
       shippingMethod: ShippingMethod
       /** What that choice costs, priced here rather than taken on trust. */
       deliveryFee: number
-      /** Whether a courier quoted it or the seller's flat rate stood. */
-      shippingQuoteSource: "flat" | "carrier"
+      /** Kept for the orders table. Every order is now at the platform rate. */
+      shippingQuoteSource: "flat"
       /** itemsTotal + deliveryFee — what the buyer is actually charged. */
       totalAmount: number
     }
@@ -44,7 +47,7 @@ export async function priceCart(
   supabase: SupabaseClient,
   rawItems: unknown,
   rawShippingMethod?: unknown,
-  destination?: RateAddress | null
+  destination?: DeliveryDestination | null
 ): Promise<PricedCart> {
   const requested = new Map<string, number>()
 
@@ -72,7 +75,7 @@ export async function priceCart(
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number, delivery_fee, free_delivery_over, shipping_rates, shipping_zones, origin_address, origin_city, origin_state, origin_postcode, origin_country, default_item_weight_kg, package_length_cm, package_width_cm, package_height_cm)"
+      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number)"
     )
     .eq("vendor_profiles.is_active", true)
     .in("id", [...requested.keys()])
@@ -130,7 +133,6 @@ export async function priceCart(
    * cost is not part of the order total: it is confirmed with the buyer before
    * dispatch, so nothing is charged for it here.
    */
-  const isAbroad = zoneForCountry(destination?.countryCode) !== HOME_ZONE
   const items: OrderItem[] = baseItems
 
   // numeric(12,2) in Postgres — settle the rounding here rather than let the
@@ -153,8 +155,8 @@ export async function priceCart(
   ) {
     const message =
       shippingMethod === "local"
-        ? "Local shipping does not cover that country. Choose a courier."
-        : "Courier delivery is for outside Nigeria. Choose local shipping or pickup."
+        ? "Local delivery does not cover that country. Choose shipping after your order."
+        : "That option is for orders outside Nigeria. Choose local delivery or pickup."
 
     return {
       ok: false,
@@ -163,37 +165,9 @@ export async function priceCart(
     }
   }
 
-  // Re-quoted at the moment the order is written, rather than trusting the
-  // figure the page last showed. If the carrier has moved its price since, the
-  // order carries the real one.
-  const shipping = await quoteShipping({
-    supabase,
-    vendor,
-    method: shippingMethod,
-    itemsTotal,
-    weightKg: totalCartWeight(
-      rows as Array<{ id: string; weight_kg?: unknown }>,
-      requested,
-      vendor?.default_item_weight_kg
-    ),
-    destination: destination ?? null
-  })
-
-  // Abroad the cost is confirmed with the buyer later, so nothing is added here.
-  const deliveryFee = isAbroad ? 0 : shipping.fee
-
-  if (
-    !isAbroad &&
-    shippingMethod !== "pickup" &&
-    shippingMethod !== "local" &&
-    deliveryFee <= 0
-  ) {
-    return {
-      ok: false,
-      status: 409,
-      error: "Courier delivery is not priced yet. Choose another shipping method or try again."
-    }
-  }
+  // The platform rate for this method and address, the same rule checkout shows.
+  const quote = deliveryQuote(shippingMethod, itemsTotal, destination?.countryCode)
+  const deliveryFee = quote.fee
 
   const totalAmount = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
@@ -204,38 +178,15 @@ export async function priceCart(
     itemsTotal,
     shippingMethod,
     deliveryFee,
-    shippingQuoteSource: shipping.source,
+    shippingQuoteSource: "flat",
     totalAmount
   }
 }
 
-/** Turns the payload's destination into a carrier address, or null. */
-export function toRateAddress(
-  value:
-    | {
-        countryCode?: string
-        city?: string
-        region?: string
-        postalCode?: string
-        addressLine?: string
-        name?: string
-        email?: string
-        phone?: string
-      }
-    | undefined
-): RateAddress | null {
+/** The buyer's delivery country, or null when the payload did not give one. */
+export function toDeliveryDestination(
+  value: { countryCode?: string } | undefined
+): DeliveryDestination | null {
   const countryCode = String(value?.countryCode ?? "").trim().toUpperCase()
-  const city = String(value?.city ?? "").trim()
-  if (!countryCode || !city) return null
-
-  return {
-    countryCode,
-    city,
-    region: value?.region?.trim() || undefined,
-    postalCode: value?.postalCode?.trim() || undefined,
-    addressLine: value?.addressLine?.trim() || undefined,
-    name: value?.name?.trim() || undefined,
-    email: value?.email?.trim() || undefined,
-    phone: value?.phone?.trim() || undefined
-  }
+  return countryCode ? { countryCode } : null
 }

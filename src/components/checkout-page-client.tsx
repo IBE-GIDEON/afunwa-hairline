@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import toast from "react-hot-toast"
-import { FiCheck, FiChevronRight, FiMapPin, FiTruck } from "react-icons/fi"
+import { FiCheck, FiChevronRight, FiMapPin } from "react-icons/fi"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { useCart } from "@/components/providers/cart-provider"
@@ -13,13 +13,11 @@ import { PlaceAutocomplete } from "@/components/place-autocomplete"
 import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS, paymentMethodsFor } from "@/lib/payment-methods"
-import { amountToFreeDelivery } from "@/lib/delivery"
-import { HOME_ZONE, zoneForCountry } from "@/lib/shipping-zones"
+import { amountToFreeDelivery, deliveryQuote, isAbroadAddress } from "@/lib/delivery"
 import {
   DEFAULT_SHIPPING_METHOD,
   isMethodAvailableFor,
   preferredShippingMethodFor,
-  resolveShippingFee,
   shippingMethodsFor,
   type ShippingMethod
 } from "@/lib/shipping"
@@ -63,14 +61,6 @@ export function CheckoutPageClient() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHODS[0])
   const [shippingMethod, setShippingMethod] =
     useState<ShippingMethod>(DEFAULT_SHIPPING_METHOD)
-  // A courier's own price for this parcel, once we know where it is going.
-  // Null means we are still on the seller's flat rate.
-  const [carrierQuote, setCarrierQuote] = useState<{
-    method: ShippingMethod
-    fee: number
-    serviceName: string | null
-  } | null>(null)
-  const [quoting, setQuoting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
@@ -130,48 +120,14 @@ export function CheckoutPageClient() {
     }, 0)
   }, [items, productMap, subtotal])
 
-  const deliveryTerms = {
-    fee: vendorData?.vendor.deliveryFee,
-    freeOver: vendorData?.vendor.freeDeliveryOver,
-    note: vendorData?.vendor.deliveryNote
-  }
   const availableMethods = shippingMethodsFor(savedAddress?.country)
   const availablePaymentMethods = paymentMethodsFor(savedAddress?.country)
-
-  const shippingRates = vendorData?.vendor.shippingRates as
-    | Record<ShippingMethod, number>
-    | undefined
-  // resolveShippingFee is the same function priceCart runs on the server, so
-  // the price on the button is the price charged.
-  // Outside Nigeria the delivery cost is confirmed with the buyer after they
-  // order, so it is not in the total. Nigeria keeps its flat fee, waived over
-  // the free-delivery amount. The same rule runs on the server in priceCart.
-  const isAbroad = zoneForCountry(savedAddress?.country) !== HOME_ZONE
+  // The same rule priceCart uses on the server, so the figure shown is the figure charged.
+  const isAbroad = isAbroadAddress(savedAddress?.country)
+  const delivery = deliveryQuote(shippingMethod, liveSubtotal, savedAddress?.country)
+  const deliveryFee = delivery.fee
+  const missingForFreeShipping = amountToFreeDelivery(liveSubtotal)
   const itemsTotal = Math.round(liveSubtotal * 100) / 100
-
-  const flatShippingFee = resolveShippingFee(
-    shippingMethod,
-    liveSubtotal,
-    deliveryTerms,
-    shippingRates
-  )
-  const deliveryFee = isAbroad
-    ? 0
-    : carrierQuote?.method === shippingMethod
-      ? carrierQuote.fee
-      : flatShippingFee
-  const selectedLiveCourier =
-    shippingMethod !== "pickup" && shippingMethod !== "local"
-  const selectedShippingPending = selectedLiveCourier && quoting
-  // Not abroad: the delivery cost is confirmed later, so no fee is expected
-  // here, so this test must not disable Confirm order for international buyers.
-  const selectedShippingUnavailable =
-    !isAbroad &&
-    selectedLiveCourier &&
-    !quoting &&
-    !carrierQuote &&
-    deliveryFee <= 0
-  const missingForFreeShipping = amountToFreeDelivery(liveSubtotal, deliveryTerms)
   const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
   // Outside Nigeria only the prepaid rails are offered, so a transfer left
@@ -189,70 +145,6 @@ export function CheckoutPageClient() {
     setShippingMethod(preferredShippingMethodFor(savedAddress?.country))
   }, [savedAddress?.country, shippingMethod])
 
-  // Ask the server for the courier's own price once we know the destination.
-  // Only for couriers: pickup and local are the seller's own arrangement.
-  useEffect(() => {
-    const asksLiveRate =
-      shippingMethod !== "pickup" && shippingMethod !== "local"
-    if (!asksLiveRate || !savedAddress || items.length === 0) {
-      setCarrierQuote(null)
-      return
-    }
-
-    let ignore = false
-    setQuoting(true)
-
-    fetch("/api/shipping/quote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items,
-        shippingMethod,
-        destination: {
-          countryCode: savedAddress.country,
-          city: savedAddress.city,
-          region: savedAddress.region,
-          addressLine: savedAddress.address,
-          name: getFullName(savedAddress) || profile?.fullName,
-          email: profile?.email,
-          phone: savedAddress.phone || profile?.phone
-        }
-      })
-    })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: { fee?: number; source?: string; serviceName?: string } | null) => {
-        if (ignore) return
-        // Only a real carrier answer replaces the flat rate. "flat" coming
-        // back means the courier could not price it, and the seller's own
-        // rate already covers that case.
-        if (data?.source === "carrier" && Number.isFinite(data.fee)) {
-          setCarrierQuote({
-            method: shippingMethod,
-            fee: Number(data.fee),
-            serviceName: data.serviceName ?? null
-          })
-        } else {
-          setCarrierQuote(null)
-        }
-      })
-      .catch(() => {
-        if (!ignore) setCarrierQuote(null)
-      })
-      .finally(() => {
-        if (!ignore) setQuoting(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [
-    shippingMethod,
-    savedAddress,
-    items,
-    profile?.email,
-    profile?.fullName,
-    profile?.phone
-  ])
 
   const vendorTransferReady = Boolean(
     vendorData?.vendor.bankName &&
@@ -263,8 +155,6 @@ export function CheckoutPageClient() {
   const canConfirm =
     Boolean(savedAddress) &&
     deliveryConfirmed &&
-    !selectedShippingPending &&
-    !selectedShippingUnavailable &&
     !submitting
 
   if (hydrated && (!vendorId || itemCount === 0)) {
@@ -343,8 +233,7 @@ export function CheckoutPageClient() {
       totalAmount: orderTotal,
       deliveryAddress: composeDeliveryAddress(savedAddress),
       shippingMethod,
-      // In parts as well as in prose, so the carrier can be asked again when
-      // the order is written rather than trusting the figure on screen.
+      // The country decides the delivery rule, so it is sent with the order.
       shippingDestination: {
         countryCode: savedAddress.country,
         city: savedAddress.city,
@@ -462,26 +351,8 @@ export function CheckoutPageClient() {
 
                 <div className="space-y-2">
                   {availableMethods.map((method) => {
-                    const flat = resolveShippingFee(
-                      method.id,
-                      liveSubtotal,
-                      deliveryTerms,
-                      shippingRates
-                    )
-                    const quoted =
-                      carrierQuote?.method === method.id ? carrierQuote.fee : null
-                    const fee = quoted ?? flat
-                    const liveCourier =
-                      method.id === "courier" || Boolean(method.brand)
-                    const waitingForRate =
-                      quoting && shippingMethod === method.id && liveCourier
-                    const priceUnavailable =
-                      liveCourier && !waitingForRate && fee <= 0 && quoted === null
+                    const quote = deliveryQuote(method.id, liveSubtotal, savedAddress?.country)
                     const chosen = shippingMethod === method.id
-                    // Local shipping is the one that reads out a country,
-                    // because it is one price for the whole of it.
-                    const label =
-                      method.id === "local" ? `${method.label} — Nigeria` : method.label
 
                     return (
                       <button
@@ -509,61 +380,34 @@ export function CheckoutPageClient() {
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-2">
                             <span className="text-sm font-semibold text-ink">
-                              {label}
+                              {method.label}
                             </span>
                             <span
                               className={cn(
                                 "text-sm font-semibold",
-                                isAbroad
+                                quote.confirmLater
                                   ? "text-muted"
-                                  : priceUnavailable
-                                    ? "text-amber-700"
-                                    : fee > 0
-                                      ? "text-brand"
-                                      : "text-success"
+                                  : quote.fee > 0
+                                    ? "text-brand"
+                                    : "text-success"
                               )}
                             >
-                              {/* Once the shipping is inside the price, a
-                                  figure here is simply wrong — it was showing
-                                  the Nigerian flat fee against a Liberian
-                                  address while the summary said Included. */}
-                              {isAbroad
-                                ? "Confirmed later"
-                                : waitingForRate
-                                  ? "Checking rate..."
-                                  : priceUnavailable
-                                    ? "Price unavailable"
-                                    : fee > 0
-                                      ? money(fee).text
-                                      : "Free"}
+                              {quote.confirmLater
+                                ? "To be confirmed"
+                                : quote.fee > 0
+                                  ? money(quote.fee).text
+                                  : "Free"}
                             </span>
-                            {quoted !== null && !isAbroad ? (
-                              <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-                                Live rate
-                              </span>
-                            ) : null}
                           </span>
                           <span className="mt-1 block text-sm leading-6 text-muted">
-                            {method.id === "local" && deliveryTerms.note
-                              ? deliveryTerms.note
-                              : quoted !== null && carrierQuote?.serviceName
-                                ? carrierQuote.serviceName
-                                : method.helper}
+                            {method.helper}
                           </span>
                           {method.id === "local" && missingForFreeShipping > 0 ? (
                             <span className="mt-1 block text-xs leading-5 text-success">
-                              Add {money(missingForFreeShipping).text} more for free
-                              shipping.
-                            </span>
-                          ) : null}
-                          {priceUnavailable ? (
-                            <span className="mt-1 block text-xs leading-5 text-muted">
-                              Courier price is not ready yet. Try again shortly.
+                              Add {money(missingForFreeShipping).text} more for free delivery.
                             </span>
                           ) : null}
                         </span>
-
-                        <CarrierMark method={method} />
                       </button>
                     )
                   })}
@@ -571,9 +415,6 @@ export function CheckoutPageClient() {
 
                 <div className="flex justify-end">
                   <Button
-                    disabled={
-                      selectedShippingPending || selectedShippingUnavailable
-                    }
                     onClick={() => {
                       setDeliveryConfirmed(true)
                       setStep(3)
@@ -694,8 +535,7 @@ export function CheckoutPageClient() {
           itemsTotal={itemsTotal}
           isAbroad={isAbroad}
           deliveryFee={deliveryFee}
-          shippingPending={selectedShippingPending}
-          shippingUnavailable={selectedShippingUnavailable}
+          confirmLater={delivery.confirmLater}
           total={orderTotal}
           money={money}
           canConfirm={canConfirm}
@@ -959,8 +799,7 @@ function OrderSummary({
   itemsTotal,
   isAbroad,
   deliveryFee,
-  shippingPending,
-  shippingUnavailable,
+  confirmLater,
   total,
   money,
   canConfirm,
@@ -972,8 +811,7 @@ function OrderSummary({
   /** Outside Nigeria the delivery cost is confirmed after the order. */
   isAbroad: boolean
   deliveryFee: number
-  shippingPending: boolean
-  shippingUnavailable: boolean
+  confirmLater: boolean
   total: number
   money: (amount: number) => { text: string }
   canConfirm: boolean
@@ -997,24 +835,14 @@ function OrderSummary({
           <span
             className={cn(
               "font-semibold",
-              shippingUnavailable
-                ? "text-amber-700"
-                : deliveryFee > 0
-                  ? "text-ink"
-                  : "text-success"
+              confirmLater ? "text-muted" : deliveryFee > 0 ? "text-ink" : "text-success"
             )}
           >
-            {/* Outside Nigeria the cost is confirmed later, so a figure or
-                "Free" here would be wrong. */}
-            {isAbroad
-              ? "Confirmed later"
-              : shippingPending
-                ? "Checking"
-                : shippingUnavailable
-                  ? "Unavailable"
-                  : deliveryFee > 0
-                    ? money(deliveryFee).text
-                    : "Free"}
+            {confirmLater
+              ? "To be confirmed"
+              : deliveryFee > 0
+                ? money(deliveryFee).text
+                : "Free"}
           </span>
         </div>
 
@@ -1042,48 +870,3 @@ function OrderSummary({
   )
 }
 
-/**
- * The courier's badge on its own colours.
- *
- * A real logo file at /public/carriers/<id>.svg is used when one is there, and
- * a coloured wordmark stands in when it is not. Drawn this way on purpose:
- * shipping a carrier's artwork we have no licence for is their decision to
- * grant, not ours to assume, and the wordmark is honest in the meantime.
- */
-function CarrierMark({
-  method
-}: {
-  method: ReturnType<typeof shippingMethodsFor>[number]
-}) {
-  const [logoFailed, setLogoFailed] = useState(false)
-
-  if (!method.brand) {
-    return <FiTruck aria-hidden="true" className="mt-0.5 shrink-0 text-muted" />
-  }
-
-  if (!logoFailed) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`/carriers/${method.id}.svg`}
-        alt=""
-        aria-hidden="true"
-        className="mt-0.5 h-6 w-auto max-w-[72px] shrink-0 object-contain"
-        onError={() => setLogoFailed(true)}
-      />
-    )
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className="mt-0.5 shrink-0 rounded-md px-2 py-1 text-[11px] font-bold tracking-wide"
-      style={{
-        backgroundColor: method.brand.background,
-        color: method.brand.foreground
-      }}
-    >
-      {method.label.toUpperCase()}
-    </span>
-  )
-}

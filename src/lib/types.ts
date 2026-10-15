@@ -62,22 +62,6 @@ export interface VendorProfile {
   accountName?: string
   accountNumber?: string
   paymentNote?: string
-  /** Flat delivery charge in naira. See lib/delivery. */
-  deliveryFee?: number
-  /** Items over this and delivery is free. */
-  freeDeliveryOver?: number
-  /** The seller's promise, e.g. "2 to 4 working days, nationwide". */
-  deliveryNote?: string
-  /** Per-courier prices, keyed by shipping method id. See lib/shipping. */
-  shippingRates?: Record<string, number>
-  /** Per-zone uplift, keyed by zone id. See lib/shipping-zones. */
-  shippingZones?: Record<string, { base: number; perKg: number }>
-  /** Where couriers collect from, and quote against. */
-  originAddress?: string
-  originCity?: string
-  originState?: string
-  /** Used for any product with no weight of its own. */
-  defaultItemWeightKg?: number
   isActive: boolean
   totalSales: number
   rating: number
@@ -230,15 +214,6 @@ export interface SellerProfileInput {
   accountName?: string
   accountNumber?: string
   paymentNote?: string
-  deliveryFee?: number
-  freeDeliveryOver?: number
-  deliveryNote?: string
-  shippingRates?: Record<string, number>
-  shippingZones?: Record<string, { base: number; perKg: number }>
-  originAddress?: string
-  originCity?: string
-  originState?: string
-  defaultItemWeightKg?: number
 }
 
 export interface ProductInput {

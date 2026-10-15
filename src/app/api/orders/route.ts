@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { hasSupabaseAdmin } from "@/lib/env"
-import { priceCart, toRateAddress } from "@/lib/order-pricing"
+import { priceCart, toDeliveryDestination } from "@/lib/order-pricing"
 import { sendPushNotification } from "@/lib/push"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     supabase,
     payload.items,
     payload.shippingMethod,
-    toRateAddress(payload.shippingDestination)
+    toDeliveryDestination(payload.shippingDestination)
   )
   if (!priced.ok) {
     return NextResponse.json({ error: priced.error }, { status: priced.status })
