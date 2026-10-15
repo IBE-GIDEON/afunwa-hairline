@@ -123,11 +123,18 @@ export function ProductManagementClient() {
     setUploadingImages(true)
 
     try {
-      const nextUrls = await uploadImages(selectedFiles, "product-photos")
-      setForm((current) => ({
-        ...current,
-        photoUrls: [...current.photoUrls, ...nextUrls]
-      }))
+      const { urls: nextUrls, failed } = await uploadImages(selectedFiles, "product-photos")
+      if (nextUrls.length > 0) {
+        setForm((current) => ({
+          ...current,
+          photoUrls: [...current.photoUrls, ...nextUrls]
+        }))
+      }
+      if (failed.length > 0) {
+        toast.error(
+          `${failed.length} photo(s) not added. ${failed[0].message}`
+        )
+      }
 
       if (fileList.length > remainingSlots) {
         toast.error(`Only the first ${remainingSlots} photo(s) were added.`)
