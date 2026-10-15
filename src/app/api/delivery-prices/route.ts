@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server"
 
 import { hasSupabaseAdmin } from "@/lib/env"
-import { loadDeliveryPrices } from "@/lib/delivery-prices-store"
+import { loadDeliveryOptions, loadDeliveryPrices } from "@/lib/delivery-prices-store"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
 
-// Always read fresh: an admin price change must show up on the next checkout.
+// Always read fresh: an admin change must show up on the next checkout.
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 /**
- * Public: the delivery price for each country that has one. Countries missing
- * from the list are "to be confirmed". Nothing secret is returned.
+ * Public: the Nigerian delivery options, and the fee for each country that has
+ * one. Countries missing from the list are "to be confirmed". Nothing secret.
  */
 export async function GET() {
   const supabase = getSupabaseAdminClient()
@@ -22,8 +22,11 @@ export async function GET() {
   }
 
   try {
-    const prices = await loadDeliveryPrices(supabase)
-    return NextResponse.json({ prices })
+    const [prices, options] = await Promise.all([
+      loadDeliveryPrices(supabase),
+      loadDeliveryOptions(supabase)
+    ])
+    return NextResponse.json({ prices, options })
   } catch (error) {
     console.error("Delivery prices read failed", error)
     return NextResponse.json(

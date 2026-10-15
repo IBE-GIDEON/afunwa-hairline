@@ -230,6 +230,8 @@ export interface ProductInput {
 export interface CheckoutPayload {
   /** Which shipping method the buyer picked. Priced on the server. */
   shippingMethod?: string
+  /** The Nigerian delivery option the buyer picked, e.g. "lagos_island". */
+  deliveryOptionId?: string
   /**
    * Where it is going, in parts, so the carrier can be re-asked at order time.
    * deliveryAddress stays the human-readable line the seller reads.

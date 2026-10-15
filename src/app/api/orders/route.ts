@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const priced = await priceCart(
     supabase,
     payload.items,
-    payload.shippingMethod,
+    payload.deliveryOptionId,
     toDeliveryDestination(payload.shippingDestination)
   )
   if (!priced.ok) {
@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       total_amount: totalAmount,
       delivery_fee: deliveryFee,
       shipping_method: shippingMethod,
+      delivery_option_label: priced.deliveryOptionLabel,
       shipping_quote_source: priced.shippingQuoteSource,
       delivery_address: deliveryAddress,
       payment_method: paymentMethod,

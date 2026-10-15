@@ -1,4 +1,4 @@
-import { isAbroadAddress, isLocalDeliveryCountry } from "@/lib/delivery"
+import { isAbroadAddress, isNigeria } from "@/lib/delivery"
 
 /**
  * How an order can reach the buyer.
@@ -44,7 +44,7 @@ export function isMethodAvailableFor(
 ): boolean {
   if (!countryCode) return true
 
-  const local = isLocalDeliveryCountry(countryCode)
+  const local = isNigeria(countryCode)
   if (method === "courier") return !local
   return local
 }
