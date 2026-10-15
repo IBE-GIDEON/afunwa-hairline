@@ -19,6 +19,12 @@ export const env = {
   supportWhatsapp: process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "",
   enablePayOnDelivery: process.env.NEXT_PUBLIC_ENABLE_PAY_ON_DELIVERY === "true",
 
+  // Server only. Comma separated emails allowed to open /admin/delivery.
+  adminEmails: (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+
 }
 
 export const hasSupabase =

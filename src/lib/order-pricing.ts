@@ -1,11 +1,12 @@
 import { type SupabaseClient } from "@supabase/supabase-js"
 
-import { deliveryQuote } from "@/lib/delivery"
 import {
-  isMethodAvailableFor,
-  normalizeShippingMethod,
-  type ShippingMethod
-} from "@/lib/shipping"
+  resolveDelivery,
+  type DeliveryOption,
+  type DeliveryPrices,
+  type StoredShippingMethod
+} from "@/lib/delivery"
+import { loadDeliveryOptions, loadDeliveryPrices } from "@/lib/delivery-prices-store"
 import { type OrderItem } from "@/lib/types"
 
 /** Where the order is going. Only the country changes the price. */
@@ -21,7 +22,9 @@ export type PricedCart =
       /** The goods alone. */
       itemsTotal: number
       /** How the buyer chose to receive it. */
-      shippingMethod: ShippingMethod
+      shippingMethod: StoredShippingMethod
+      /** The option's name, stored on the order for the seller. */
+      deliveryOptionLabel: string
       /** What that choice costs, priced here rather than taken on trust. */
       deliveryFee: number
       /** Kept for the orders table. Every order is now at the platform rate. */
@@ -46,7 +49,7 @@ export type PricedCart =
 export async function priceCart(
   supabase: SupabaseClient,
   rawItems: unknown,
-  rawShippingMethod?: unknown,
+  rawDeliveryOptionId?: unknown,
   destination?: DeliveryDestination | null
 ): Promise<PricedCart> {
   const requested = new Map<string, number>()
@@ -75,7 +78,7 @@ export async function priceCart(
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number)"
+      "id, name, price, in_stock, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number)"
     )
     .eq("vendor_profiles.is_active", true)
     .in("id", [...requested.keys()])
@@ -142,33 +145,41 @@ export async function priceCart(
       items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100
     ) / 100
 
-  // The browser says which method; what it costs is decided here. Anything
-  // unrecognised falls back to local rather than to free.
-  const shippingMethod = normalizeShippingMethod(rawShippingMethod)
-
-  // Checkout hides local shipping for an address outside the countries it
-  // covers, but hiding a button is not a rule. Asking for the Nigerian flat
-  // rate on a Ghanaian address would undercharge, so refuse it here too.
-  if (
-    destination?.countryCode &&
-    !isMethodAvailableFor(shippingMethod, destination.countryCode)
-  ) {
-    const message =
-      shippingMethod === "local"
-        ? "Local delivery does not cover that country. Choose shipping after your order."
-        : "That option is for orders outside Nigeria. Choose local delivery or pickup."
-
+  // Prices and options come from the admin tables. If they cannot be read,
+  // refuse the order rather than charge a guess.
+  let deliveryData: { prices: DeliveryPrices; options: DeliveryOption[] }
+  try {
+    const [prices, options] = await Promise.all([
+      loadDeliveryPrices(supabase),
+      loadDeliveryOptions(supabase)
+    ])
+    deliveryData = { prices, options }
+  } catch {
     return {
       ok: false,
-      status: 400,
-      error: message
+      status: 503,
+      error: "Delivery pricing is unavailable right now. Try again shortly."
     }
   }
 
-  // The platform rate for this method and address, the same rule checkout shows.
-  const quote = deliveryQuote(shippingMethod, itemsTotal, destination?.countryCode)
-  const deliveryFee = quote.fee
+  // What the buyer chose is priced here. An unknown or switched-off option is
+  // refused, so nothing is charged at a price nobody was shown.
+  const choice = resolveDelivery({
+    optionId: typeof rawDeliveryOptionId === "string" ? rawDeliveryOptionId : undefined,
+    countryCode: destination?.countryCode,
+    options: deliveryData.options,
+    prices: deliveryData.prices
+  })
+  if (!choice) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Choose a delivery option."
+    }
+  }
 
+  const shippingMethod = choice.shippingMethod
+  const deliveryFee = choice.fee
   const totalAmount = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
   return {
@@ -178,6 +189,7 @@ export async function priceCart(
     itemsTotal,
     shippingMethod,
     deliveryFee,
+    deliveryOptionLabel: choice.label,
     shippingQuoteSource: "flat",
     totalAmount
   }

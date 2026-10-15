@@ -1,86 +1,140 @@
 /**
  * What delivery costs, decided in one place.
  *
- * The platform sets the delivery price, not each seller, so every order is
- * priced the same way. The checkout page shows this figure and the server
- * charges it, and both call deliveryQuote, so the two cannot drift apart.
+ * Inside Nigeria the buyer picks one named option from the admin list: pickup,
+ * or a delivery option with a fixed fee. Outside Nigeria there is one
+ * "International delivery" line, priced per country by the admin. A blank
+ * country fee means the cost is confirmed with the buyer after ordering.
  *
- * Nigeria: one flat fee, waived once the basket reaches the free-delivery
- * amount. Both numbers come from NEXT_PUBLIC_DELIVERY_FEE_NGN and
- * NEXT_PUBLIC_DELIVERY_FREE_OVER_NGN. If the fee is not set yet, the delivery
- * cost is confirmed with the buyer after ordering rather than guessed.
- *
- * Outside Nigeria: the cost is confirmed with the buyer after ordering and is
- * not part of the total.
+ * The checkout page and the server both call resolveDelivery with the same
+ * options and prices, so the figure on screen is the figure charged.
  */
 
-/** Countries delivered at the flat Nigerian rate, as ISO alpha-2. */
-export const LOCAL_DELIVERY_COUNTRIES = ["NG"] as const
+/** Naira per country, keyed by ISO alpha-2. Missing keys are "to be confirmed". */
+export type DeliveryPrices = Record<string, number>
 
-export function isLocalDeliveryCountry(countryCode: string | undefined) {
-  const normalized = countryCode?.trim().toUpperCase()
-  if (!normalized) return false
-  return (LOCAL_DELIVERY_COUNTRIES as readonly string[]).includes(normalized)
+export interface DeliveryOption {
+  /** Stable id, e.g. "lagos_island". "pickup" is the collect-yourself option. */
+  id: string
+  label: string
+  /** Shown under the label. For pickup, the store address. */
+  detail: string
+  fee: number
+  active: boolean
+  sortOrder: number
 }
 
-/** An address outside the countries we deliver to at the flat rate. */
-export function isAbroadAddress(countryCode: string | undefined) {
-  return Boolean(countryCode) && !isLocalDeliveryCountry(countryCode)
-}
+/** The order shipping method each option is stored as. */
+export type StoredShippingMethod = "pickup" | "local" | "courier"
 
-function parseNaira(value: string | undefined) {
-  if (value === undefined || value.trim() === "") return null
-  const amount = Number(value)
-  if (!Number.isFinite(amount) || amount < 0) return null
-  return Math.round(amount * 100) / 100
-}
-
-// Literal process.env reads, so Next.js inlines them into the browser bundle.
-const LOCAL_FEE = parseNaira(process.env.NEXT_PUBLIC_DELIVERY_FEE_NGN)
-const LOCAL_FREE_OVER = parseNaira(process.env.NEXT_PUBLIC_DELIVERY_FREE_OVER_NGN)
-
-export interface DeliveryQuote {
-  /** Naira charged at checkout. Zero when confirmed later. */
+export interface DeliveryChoice {
+  shippingMethod: StoredShippingMethod
   fee: number
   /** True when the buyer is told the cost after ordering. */
   confirmLater: boolean
-  /** How the figure was reached, stored on the order. */
-  source: "pickup" | "free" | "flat" | "confirm"
+  /** The name shown to the buyer and stored on the order. */
+  label: string
+}
+
+export const PICKUP_OPTION_ID = "pickup"
+export const INTERNATIONAL_LABEL = "International delivery"
+
+/** Nigeria is the default when no country is given yet. */
+export function isNigeria(countryCode: string | undefined) {
+  const normalized = countryCode?.trim().toUpperCase()
+  return !normalized || normalized === "NG"
+}
+
+/** An address outside Nigeria. */
+export function isAbroadAddress(countryCode: string | undefined) {
+  return !isNigeria(countryCode)
+}
+
+/** Only options that are switched on, in the order the admin set. */
+export function activeOptions(options: DeliveryOption[]) {
+  return options
+    .filter((option) => option.active)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
 /**
- * What a delivery method costs this basket going to this country.
+ * The delivery the buyer gets for this choice.
  *
- * method is one of "pickup", "local" or "courier". Kept as a plain string so
- * this module does not depend on the shipping method list.
+ * Returns null when a Nigerian buyer's option does not exist or is switched off,
+ * so the caller can refuse the order rather than charge a guess.
  */
-export function deliveryQuote(
-  method: string,
-  itemsTotal: number,
+export function resolveDelivery({
+  optionId,
+  countryCode,
+  options,
+  prices
+}: {
+  optionId: string | undefined
   countryCode: string | undefined
-): DeliveryQuote {
-  if (method === "pickup") {
-    return { fee: 0, confirmLater: false, source: "pickup" }
+  options: DeliveryOption[]
+  prices: DeliveryPrices
+}): DeliveryChoice | null {
+  if (isAbroadAddress(countryCode)) {
+    const code = countryCode!.trim().toUpperCase()
+    const price = prices[code]
+    if (price === undefined || !Number.isFinite(price) || price < 0) {
+      return {
+        shippingMethod: "courier",
+        fee: 0,
+        confirmLater: true,
+        label: INTERNATIONAL_LABEL
+      }
+    }
+    return {
+      shippingMethod: "courier",
+      fee: price,
+      confirmLater: false,
+      label: INTERNATIONAL_LABEL
+    }
   }
 
-  if (method === "courier" || isAbroadAddress(countryCode)) {
-    return { fee: 0, confirmLater: true, source: "confirm" }
-  }
+  const option = activeOptions(options).find((entry) => entry.id === optionId)
+  if (!option) return null
 
-  if (LOCAL_FEE === null) {
-    return { fee: 0, confirmLater: true, source: "confirm" }
+  const isPickup = option.id === PICKUP_OPTION_ID
+  return {
+    shippingMethod: isPickup ? "pickup" : "local",
+    fee: isPickup ? 0 : option.fee,
+    confirmLater: false,
+    label: option.label
   }
-
-  if (LOCAL_FREE_OVER !== null && itemsTotal >= LOCAL_FREE_OVER) {
-    return { fee: 0, confirmLater: false, source: "free" }
-  }
-
-  return { fee: LOCAL_FEE, confirmLater: false, source: "flat" }
 }
 
-/** How much more is needed before Nigerian delivery is free, if ever. */
-export function amountToFreeDelivery(itemsTotal: number) {
-  if (LOCAL_FREE_OVER === null) return 0
-  if (itemsTotal >= LOCAL_FREE_OVER) return 0
-  return Math.round((LOCAL_FREE_OVER - itemsTotal) * 100) / 100
+/** Keeps only valid per-country rows from the database or the API. */
+export function normalizeDeliveryPrices(value: unknown): DeliveryPrices {
+  if (!value || typeof value !== "object") return {}
+
+  const out: DeliveryPrices = {}
+  for (const [code, raw] of Object.entries(value as Record<string, unknown>)) {
+    const fee = Number(raw)
+    if (/^[A-Z]{2}$/.test(code) && Number.isFinite(fee) && fee >= 0) {
+      out[code] = Math.round(fee * 100) / 100
+    }
+  }
+  return out
+}
+
+/** Keeps only well formed options from the database or the API. */
+export function normalizeDeliveryOptions(value: unknown): DeliveryOption[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((raw) => raw as Record<string, unknown>)
+    .filter((raw) => typeof raw.id === "string" && typeof raw.label === "string")
+    .map((raw) => {
+      const fee = Number(raw.fee ?? 0)
+      return {
+        id: String(raw.id),
+        label: String(raw.label),
+        detail: String(raw.detail ?? ""),
+        fee: Number.isFinite(fee) && fee >= 0 ? Math.round(fee * 100) / 100 : 0,
+        active: Boolean(raw.active),
+        sortOrder: Number(raw.sortOrder ?? raw.sort_order ?? 0) || 0
+      }
+    })
 }

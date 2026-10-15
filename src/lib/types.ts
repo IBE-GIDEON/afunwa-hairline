@@ -78,8 +78,6 @@ export interface Product {
   price: number
   /** Struck-through "was" price. Display only — never used to charge. */
   compareAtPrice?: number
-  /** Kilograms. What a carrier needs before it can price a parcel. */
-  weightKg?: number
   photoUrl?: string
   photoUrls: string[]
   inStock: boolean
@@ -219,7 +217,6 @@ export interface SellerProfileInput {
 export interface ProductInput {
   id?: string
   vendorId: string
-  weightKg?: number
   name: string
   category: ProductCategory
   description: string
@@ -233,6 +230,8 @@ export interface ProductInput {
 export interface CheckoutPayload {
   /** Which shipping method the buyer picked. Priced on the server. */
   shippingMethod?: string
+  /** The Nigerian delivery option the buyer picked, e.g. "lagos_island". */
+  deliveryOptionId?: string
   /**
    * Where it is going, in parts, so the carrier can be re-asked at order time.
    * deliveryAddress stays the human-readable line the seller reads.

@@ -13,14 +13,13 @@ import { PlaceAutocomplete } from "@/components/place-autocomplete"
 import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS, paymentMethodsFor } from "@/lib/payment-methods"
-import { amountToFreeDelivery, deliveryQuote, isAbroadAddress } from "@/lib/delivery"
 import {
-  DEFAULT_SHIPPING_METHOD,
-  isMethodAvailableFor,
-  preferredShippingMethodFor,
-  shippingMethodsFor,
-  type ShippingMethod
-} from "@/lib/shipping"
+  activeOptions,
+  isAbroadAddress,
+  resolveDelivery,
+  type DeliveryOption,
+  type DeliveryPrices
+} from "@/lib/delivery"
 import {
   EMPTY_CHECKOUT_ADDRESS,
   addressSummary,
@@ -59,9 +58,13 @@ export function CheckoutPageClient() {
   const [step, setStep] = useState<Step>(1)
   const [deliveryConfirmed, setDeliveryConfirmed] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHODS[0])
-  const [shippingMethod, setShippingMethod] =
-    useState<ShippingMethod>(DEFAULT_SHIPPING_METHOD)
+  // The Nigerian option the buyer picked. Empty means the first one offered.
+  const [deliveryOptionId, setDeliveryOptionId] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  // Admin delivery options and country prices. Null until they arrive.
+  const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[] | null>(null)
+  const [deliveryPrices, setDeliveryPrices] = useState<DeliveryPrices | null>(null)
+  const [pricesFailed, setPricesFailed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
   // A returning buyer should land on delivery, not retype an address they have
@@ -120,13 +123,44 @@ export function CheckoutPageClient() {
     }, 0)
   }, [items, productMap, subtotal])
 
-  const availableMethods = shippingMethodsFor(savedAddress?.country)
+  useEffect(() => {
+    let ignore = false
+    fetch("/api/delivery-prices")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { prices?: DeliveryPrices; options?: DeliveryOption[] } | null) => {
+        if (ignore) return
+        if (data?.prices && data.options) {
+          setDeliveryPrices(data.prices)
+          setDeliveryOptions(data.options)
+        } else {
+          setPricesFailed(true)
+        }
+      })
+      .catch(() => {
+        if (!ignore) setPricesFailed(true)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
+
   const availablePaymentMethods = paymentMethodsFor(savedAddress?.country)
-  // The same rule priceCart uses on the server, so the figure shown is the figure charged.
   const isAbroad = isAbroadAddress(savedAddress?.country)
-  const delivery = deliveryQuote(shippingMethod, liveSubtotal, savedAddress?.country)
-  const deliveryFee = delivery.fee
-  const missingForFreeShipping = amountToFreeDelivery(liveSubtotal)
+  const pricesReady = deliveryPrices !== null && deliveryOptions !== null
+  const activeDeliveryOptions = activeOptions(deliveryOptions ?? [])
+  const optionId = deliveryOptionId || activeDeliveryOptions[0]?.id || ""
+  // The same rule priceCart uses on the server, so the figure shown is the figure charged.
+  const choice = pricesReady
+    ? resolveDelivery({
+        optionId,
+        countryCode: savedAddress?.country,
+        options: deliveryOptions ?? [],
+        prices: deliveryPrices ?? {}
+      })
+    : null
+  const shippingMethod = choice?.shippingMethod ?? "local"
+  const deliveryFee = choice?.fee ?? 0
+  const delivery = { confirmLater: choice?.confirmLater ?? false }
   const itemsTotal = Math.round(liveSubtotal * 100) / 100
   const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
@@ -137,13 +171,6 @@ export function CheckoutPageClient() {
     if (availablePaymentMethods[0]) setPaymentMethod(availablePaymentMethods[0])
   }, [availablePaymentMethods, paymentMethod])
 
-  // Changing country can take the chosen method off the list: local is for
-  // Nigeria, courier is for outside Nigeria. Leaving the old one selected
-  // would price and charge the wrong route.
-  useEffect(() => {
-    if (isMethodAvailableFor(shippingMethod, savedAddress?.country)) return
-    setShippingMethod(preferredShippingMethodFor(savedAddress?.country))
-  }, [savedAddress?.country, shippingMethod])
 
 
   const vendorTransferReady = Boolean(
@@ -154,6 +181,7 @@ export function CheckoutPageClient() {
 
   const canConfirm =
     Boolean(savedAddress) &&
+    pricesReady &&
     deliveryConfirmed &&
     !submitting
 
@@ -233,6 +261,7 @@ export function CheckoutPageClient() {
       totalAmount: orderTotal,
       deliveryAddress: composeDeliveryAddress(savedAddress),
       shippingMethod,
+      deliveryOptionId: optionId,
       // The country decides the delivery rule, so it is sent with the order.
       shippingDestination: {
         countryCode: savedAddress.country,
@@ -333,7 +362,7 @@ export function CheckoutPageClient() {
                     needs telling that is what happened, or the missing figure
                     reads as something still to come. Says it once, plainly,
                     before the options rather than after them. */}
-                {isAbroad ? (
+                {pricesReady && delivery.confirmLater ? (
                   <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4">
                     <p className="text-sm font-semibold text-ink">
                       Delivery to{" "}
@@ -349,68 +378,86 @@ export function CheckoutPageClient() {
                   </div>
                 ) : null}
 
+                <div>
+                  <p className="text-sm font-semibold text-ink">Where are we delivering to?</p>
+                  <p className="mt-1 text-xs leading-5 text-muted">Pick the area that matches your address.</p>
+                </div>
+                {pricesFailed ? (
+                  <p className="text-xs leading-5 text-amber-700">
+                    Delivery prices could not be loaded. Refresh the page to continue.
+                  </p>
+                ) : null}
                 <div className="space-y-2">
-                  {availableMethods.map((method) => {
-                    const quote = deliveryQuote(method.id, liveSubtotal, savedAddress?.country)
-                    const chosen = shippingMethod === method.id
-
-                    return (
-                      <button
-                        key={method.id}
-                        type="button"
-                        aria-pressed={chosen}
-                        onClick={() => {
-                          setShippingMethod(method.id)
-                          setDeliveryConfirmed(false)
-                        }}
-                        className={cn(
-                          "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
-                          chosen
-                            ? "border-brand/40 bg-brand/5"
-                            : "border-border bg-surface hover:border-brand/40"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "mt-0.5 flex h-4 w-4 shrink-0 rounded-full",
-                            chosen ? "border-4 border-brand" : "border border-border"
-                          )}
-                        />
-
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-semibold text-ink">
-                              {method.label}
-                            </span>
-                            <span
-                              className={cn(
-                                "text-sm font-semibold",
-                                quote.confirmLater
-                                  ? "text-muted"
-                                  : quote.fee > 0
-                                    ? "text-brand"
-                                    : "text-success"
-                              )}
-                            >
-                              {quote.confirmLater
+                  {isAbroad ? (
+                    <div className="flex w-full items-start gap-3 rounded-2xl border border-brand/40 bg-brand/5 p-4">
+                      <span className="mt-0.5 flex h-4 w-4 shrink-0 rounded-full border-4 border-brand" />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-ink">International delivery</span>
+                          <span
+                            className={cn(
+                              "text-sm font-semibold",
+                              delivery.confirmLater ? "text-muted" : deliveryFee > 0 ? "text-brand" : "text-success"
+                            )}
+                          >
+                            {!pricesReady
+                              ? "Checking..."
+                              : delivery.confirmLater
                                 ? "To be confirmed"
-                                : quote.fee > 0
-                                  ? money(quote.fee).text
+                                : deliveryFee > 0
+                                  ? money(deliveryFee).text
                                   : "Free"}
-                            </span>
                           </span>
-                          <span className="mt-1 block text-sm leading-6 text-muted">
-                            {method.helper}
-                          </span>
-                          {method.id === "local" && missingForFreeShipping > 0 ? (
-                            <span className="mt-1 block text-xs leading-5 text-success">
-                              Add {money(missingForFreeShipping).text} more for free delivery.
-                            </span>
-                          ) : null}
                         </span>
-                      </button>
-                    )
-                  })}
+                        <span className="mt-1 block text-sm leading-6 text-muted">
+                          Delivered to your country.
+                        </span>
+                      </span>
+                    </div>
+                  ) : (
+                    activeDeliveryOptions.map((option) => {
+                      const chosen = optionId === option.id
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={chosen}
+                          onClick={() => {
+                            setDeliveryOptionId(option.id)
+                            setDeliveryConfirmed(false)
+                          }}
+                          className={cn(
+                            "flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition",
+                            chosen
+                              ? "border-brand/40 bg-brand/5"
+                              : "border-border bg-surface hover:border-brand/40"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "mt-0.5 flex h-4 w-4 shrink-0 rounded-full",
+                              chosen ? "border-4 border-brand" : "border border-border"
+                            )}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-ink">{option.label}</span>
+                              {option.fee > 0 ? (
+                                <span className="text-sm font-semibold text-brand">
+                                  {money(option.fee).text}
+                                </span>
+                              ) : null}
+                            </span>
+                            {option.detail ? (
+                              <span className="mt-1 block text-sm leading-6 text-muted">
+                                {option.detail}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      )
+                    })
+                  )}
                 </div>
 
                 <div className="flex justify-end">

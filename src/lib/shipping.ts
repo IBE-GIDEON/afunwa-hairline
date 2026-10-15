@@ -1,4 +1,4 @@
-import { isAbroadAddress, isLocalDeliveryCountry } from "@/lib/delivery"
+import { isAbroadAddress, isNigeria } from "@/lib/delivery"
 
 /**
  * How an order can reach the buyer.
@@ -16,12 +16,12 @@ export const SHIPPING_METHODS = [
   {
     id: "local",
     label: "Local delivery",
-    helper: "Delivered within Nigeria at one flat rate."
+    helper: "Delivered within Nigeria."
   },
   {
     id: "courier",
-    label: "Shipping after your order",
-    helper: "We confirm the delivery cost with you before we dispatch."
+    label: "International delivery",
+    helper: "Delivered to your country."
   }
 ] as const
 
@@ -44,7 +44,7 @@ export function isMethodAvailableFor(
 ): boolean {
   if (!countryCode) return true
 
-  const local = isLocalDeliveryCountry(countryCode)
+  const local = isNigeria(countryCode)
   if (method === "courier") return !local
   return local
 }
