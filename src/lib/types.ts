@@ -78,8 +78,6 @@ export interface Product {
   price: number
   /** Struck-through "was" price. Display only — never used to charge. */
   compareAtPrice?: number
-  /** Kilograms. What a carrier needs before it can price a parcel. */
-  weightKg?: number
   photoUrl?: string
   photoUrls: string[]
   inStock: boolean
@@ -219,7 +217,6 @@ export interface SellerProfileInput {
 export interface ProductInput {
   id?: string
   vendorId: string
-  weightKg?: number
   name: string
   category: ProductCategory
   description: string

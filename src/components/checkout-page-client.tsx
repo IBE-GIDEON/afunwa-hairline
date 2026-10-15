@@ -13,7 +13,7 @@ import { PlaceAutocomplete } from "@/components/place-autocomplete"
 import { Button, Card, Input, PAGE_WIDTH } from "@/components/ui"
 import { PAYMENT_METHOD_META } from "@/lib/constants"
 import { PAYMENT_METHODS, paymentMethodsFor } from "@/lib/payment-methods"
-import { amountToFreeDelivery, deliveryQuote, isAbroadAddress } from "@/lib/delivery"
+import { deliveryQuote, isAbroadAddress, type DeliveryPrices } from "@/lib/delivery"
 import {
   DEFAULT_SHIPPING_METHOD,
   isMethodAvailableFor,
@@ -62,6 +62,9 @@ export function CheckoutPageClient() {
   const [shippingMethod, setShippingMethod] =
     useState<ShippingMethod>(DEFAULT_SHIPPING_METHOD)
   const [submitting, setSubmitting] = useState(false)
+  // Admin delivery prices by country. Null until they arrive.
+  const [deliveryPrices, setDeliveryPrices] = useState<DeliveryPrices | null>(null)
+  const [pricesFailed, setPricesFailed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
   // A returning buyer should land on delivery, not retype an address they have
@@ -120,13 +123,30 @@ export function CheckoutPageClient() {
     }, 0)
   }, [items, productMap, subtotal])
 
+  useEffect(() => {
+    let ignore = false
+    fetch("/api/delivery-prices")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { prices?: DeliveryPrices } | null) => {
+        if (ignore) return
+        if (data?.prices) setDeliveryPrices(data.prices)
+        else setPricesFailed(true)
+      })
+      .catch(() => {
+        if (!ignore) setPricesFailed(true)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
+
   const availableMethods = shippingMethodsFor(savedAddress?.country)
   const availablePaymentMethods = paymentMethodsFor(savedAddress?.country)
   // The same rule priceCart uses on the server, so the figure shown is the figure charged.
   const isAbroad = isAbroadAddress(savedAddress?.country)
-  const delivery = deliveryQuote(shippingMethod, liveSubtotal, savedAddress?.country)
-  const deliveryFee = delivery.fee
-  const missingForFreeShipping = amountToFreeDelivery(liveSubtotal)
+  const pricesReady = deliveryPrices !== null
+  const delivery = deliveryQuote(shippingMethod, savedAddress?.country, deliveryPrices ?? {})
+  const deliveryFee = pricesReady ? delivery.fee : 0
   const itemsTotal = Math.round(liveSubtotal * 100) / 100
   const orderTotal = Math.round((itemsTotal + deliveryFee) * 100) / 100
 
@@ -154,6 +174,7 @@ export function CheckoutPageClient() {
 
   const canConfirm =
     Boolean(savedAddress) &&
+    pricesReady &&
     deliveryConfirmed &&
     !submitting
 
@@ -333,7 +354,7 @@ export function CheckoutPageClient() {
                     needs telling that is what happened, or the missing figure
                     reads as something still to come. Says it once, plainly,
                     before the options rather than after them. */}
-                {isAbroad ? (
+                {pricesReady && delivery.confirmLater ? (
                   <div className="rounded-2xl border border-brand/20 bg-brand/5 p-4">
                     <p className="text-sm font-semibold text-ink">
                       Delivery to{" "}
@@ -349,9 +370,14 @@ export function CheckoutPageClient() {
                   </div>
                 ) : null}
 
+                {pricesFailed ? (
+                  <p className="text-xs leading-5 text-amber-700">
+                    Delivery prices could not be loaded. Refresh the page to continue.
+                  </p>
+                ) : null}
                 <div className="space-y-2">
                   {availableMethods.map((method) => {
-                    const quote = deliveryQuote(method.id, liveSubtotal, savedAddress?.country)
+                    const quote = deliveryQuote(method.id, savedAddress?.country, deliveryPrices ?? {})
                     const chosen = shippingMethod === method.id
 
                     return (
@@ -392,8 +418,10 @@ export function CheckoutPageClient() {
                                     : "text-success"
                               )}
                             >
-                              {quote.confirmLater
-                                ? "To be confirmed"
+                              {!pricesReady
+                                ? "Checking..."
+                                : quote.confirmLater
+                                  ? "To be confirmed"
                                 : quote.fee > 0
                                   ? money(quote.fee).text
                                   : "Free"}
@@ -402,11 +430,6 @@ export function CheckoutPageClient() {
                           <span className="mt-1 block text-sm leading-6 text-muted">
                             {method.helper}
                           </span>
-                          {method.id === "local" && missingForFreeShipping > 0 ? (
-                            <span className="mt-1 block text-xs leading-5 text-success">
-                              Add {money(missingForFreeShipping).text} more for free delivery.
-                            </span>
-                          ) : null}
                         </span>
                       </button>
                     )

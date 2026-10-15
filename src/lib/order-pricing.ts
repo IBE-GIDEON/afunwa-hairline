@@ -1,6 +1,7 @@
 import { type SupabaseClient } from "@supabase/supabase-js"
 
-import { deliveryQuote } from "@/lib/delivery"
+import { deliveryQuote, type DeliveryPrices } from "@/lib/delivery"
+import { loadDeliveryPrices } from "@/lib/delivery-prices-store"
 import {
   isMethodAvailableFor,
   normalizeShippingMethod,
@@ -75,7 +76,7 @@ export async function priceCart(
   const { data: rows, error } = await supabase
     .from("products")
     .select(
-      "id, name, price, in_stock, weight_kg, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number)"
+      "id, name, price, in_stock, vendor_id, vendor_profiles!inner(is_active, user_id, store_name, city, whatsapp_number)"
     )
     .eq("vendor_profiles.is_active", true)
     .in("id", [...requested.keys()])
@@ -166,7 +167,19 @@ export async function priceCart(
   }
 
   // The platform rate for this method and address, the same rule checkout shows.
-  const quote = deliveryQuote(shippingMethod, itemsTotal, destination?.countryCode)
+  // Prices come from the admin table. If they cannot be read, refuse the order
+  // rather than charge a guess.
+  let prices: DeliveryPrices
+  try {
+    prices = await loadDeliveryPrices(supabase)
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: "Delivery pricing is unavailable right now. Try again shortly."
+    }
+  }
+  const quote = deliveryQuote(shippingMethod, destination?.countryCode, prices)
   const deliveryFee = quote.fee
 
   const totalAmount = Math.round((itemsTotal + deliveryFee) * 100) / 100

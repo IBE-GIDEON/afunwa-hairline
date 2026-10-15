@@ -16,12 +16,12 @@ export const SHIPPING_METHODS = [
   {
     id: "local",
     label: "Local delivery",
-    helper: "Delivered within Nigeria at one flat rate."
+    helper: "Delivered within Nigeria."
   },
   {
     id: "courier",
-    label: "Shipping after your order",
-    helper: "We confirm the delivery cost with you before we dispatch."
+    label: "International delivery",
+    helper: "Delivered to your country."
   }
 ] as const
 

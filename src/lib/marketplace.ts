@@ -119,7 +119,6 @@ function mapProduct(row: Record<string, unknown>) {
       Number(row.price ?? 0)
     ),
     price: Number(row.price ?? 0),
-    weightKg: row.weight_kg != null ? Number(row.weight_kg) : undefined,
     photoUrl: photoUrls[0],
     photoUrls,
     inStock: normalizeBoolean(row.in_stock ?? row.inStock, true),
@@ -2441,8 +2440,6 @@ export async function saveProduct(
     description: input.description,
     compare_at_price:
       normalizeCompareAtPrice(input.compareAtPrice, input.price) ?? null,
-    weight_kg:
-      Number(input.weightKg) > 0 ? Number(input.weightKg) : null,
     price: input.price,
     photo_url: input.photoUrls[0] ?? input.photoUrl ?? null,
     photo_urls: input.photoUrls,
@@ -2840,7 +2837,6 @@ export async function loadBuyerDeliveryAddress(userId: string) {
 /** Column names as a seller would say them. */
 function friendlyColumnName(column: string) {
   const names: Record<string, string> = {
-    weight_kg: "weight",
     compare_at_price: "old price",
     category: "category",
     photo_urls: "extra photos"
