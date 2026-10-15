@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
@@ -74,7 +75,7 @@ export function ProfilePageClient() {
   }, [profile, vendorProfile])
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(VIEW_MODE_KEY)
+    const saved = safeLocalStorage.getItem(VIEW_MODE_KEY)
     if (saved === "buyer" || saved === "seller") {
       setViewMode(saved)
     }
@@ -449,7 +450,7 @@ export function ProfilePageClient() {
                     }`}
                     onClick={() => {
                       setViewMode(mode)
-                      window.localStorage.setItem(VIEW_MODE_KEY, mode)
+                      safeLocalStorage.setItem(VIEW_MODE_KEY, mode)
                     }}
                   >
                     {mode === "buyer" ? "Buyer" : "Seller"}

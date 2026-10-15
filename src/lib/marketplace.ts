@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import { createId } from "@/lib/utils"
 import {
   createOrderDemo,
@@ -573,7 +574,7 @@ function getPersistedCacheStore(): PersistedCacheStore {
     return {}
   }
 
-  const raw = window.localStorage.getItem(PERSISTED_CACHE_KEY)
+  const raw = safeLocalStorage.getItem(PERSISTED_CACHE_KEY)
   if (!raw) {
     return {}
   }
@@ -585,12 +586,39 @@ function getPersistedCacheStore(): PersistedCacheStore {
   }
 }
 
+/** Most entries kept, and the most bytes, in the shared offline cache. */
+const PERSISTED_CACHE_MAX_ENTRIES = 40
+const PERSISTED_CACHE_MAX_CHARS = 1_500_000
+
+/**
+ * Saves the shared cache, tidied first.
+ *
+ * It used to grow forever: an entry was only removed when that exact key was
+ * read again, and every search got its own key. Once the browser's storage was
+ * full, every write threw, and signing in broke with it. Now expired entries
+ * go on every write, the newest are kept within a size budget, and if the
+ * browser still refuses, the cache is dropped rather than the page.
+ */
 function savePersistedCacheStore(store: PersistedCacheStore) {
   if (typeof window === "undefined") {
     return
   }
 
-  window.localStorage.setItem(PERSISTED_CACHE_KEY, JSON.stringify(store))
+  const now = Date.now()
+  let entries = Object.entries(store)
+    .filter(([, entry]) => entry && entry.expiresAt > now)
+    .sort(([, a], [, b]) => b.expiresAt - a.expiresAt)
+    .slice(0, PERSISTED_CACHE_MAX_ENTRIES)
+
+  let serialized = JSON.stringify(Object.fromEntries(entries))
+  while (serialized.length > PERSISTED_CACHE_MAX_CHARS && entries.length > 1) {
+    entries = entries.slice(0, Math.ceil(entries.length / 2))
+    serialized = JSON.stringify(Object.fromEntries(entries))
+  }
+
+  if (!safeLocalStorage.setItem(PERSISTED_CACHE_KEY, serialized)) {
+    safeLocalStorage.removeItem(PERSISTED_CACHE_KEY)
+  }
 }
 
 function readPersistedCache<T>(key: string): T | null {
@@ -933,7 +961,7 @@ function getHiddenOrdersStore(): HiddenOrdersStore {
     return { buyer: {}, seller: {} }
   }
 
-  const raw = window.localStorage.getItem(HIDDEN_ORDERS_KEY)
+  const raw = safeLocalStorage.getItem(HIDDEN_ORDERS_KEY)
   if (!raw) {
     return { buyer: {}, seller: {} }
   }
@@ -954,7 +982,7 @@ function saveHiddenOrdersStore(store: HiddenOrdersStore) {
     return
   }
 
-  window.localStorage.setItem(HIDDEN_ORDERS_KEY, JSON.stringify(store))
+  safeLocalStorage.setItem(HIDDEN_ORDERS_KEY, JSON.stringify(store))
 }
 
 function getHiddenOrderIds(actor: OrderArchiveActor, userId: string) {

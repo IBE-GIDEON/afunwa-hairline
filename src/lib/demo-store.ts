@@ -1,3 +1,4 @@
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   DEMO_STATE_KEY,
   OFFLINE_ORDER_STORE,
@@ -33,13 +34,13 @@ export function getDemoState(): DemoState {
     return createInitialDemoState()
   }
 
-  const existing = window.localStorage.getItem(DEMO_STATE_KEY)
+  const existing = safeLocalStorage.getItem(DEMO_STATE_KEY)
   if (existing) {
     return JSON.parse(existing) as DemoState
   }
 
   const seeded = createInitialDemoState()
-  window.localStorage.setItem(DEMO_STATE_KEY, JSON.stringify(seeded))
+  safeLocalStorage.setItem(DEMO_STATE_KEY, JSON.stringify(seeded))
   return seeded
 }
 
@@ -48,7 +49,7 @@ export function saveDemoState(state: DemoState) {
     return
   }
 
-  window.localStorage.setItem(DEMO_STATE_KEY, JSON.stringify(state))
+  safeLocalStorage.setItem(DEMO_STATE_KEY, JSON.stringify(state))
 }
 
 function withState<T>(updater: (draft: DemoState) => T): T {

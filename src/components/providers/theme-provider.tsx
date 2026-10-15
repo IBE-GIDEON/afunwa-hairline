@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   createContext,
   useContext,
@@ -46,7 +47,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light")
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(THEME_KEY)
+    const stored = safeLocalStorage.getItem(THEME_KEY)
     const nextTheme =
       stored === "dark" || stored === "light"
         ? stored
@@ -61,13 +62,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       theme,
       setTheme(nextTheme) {
         setThemeState(nextTheme)
-        window.localStorage.setItem(THEME_KEY, nextTheme)
+        safeLocalStorage.setItem(THEME_KEY, nextTheme)
         applyTheme(nextTheme, true)
       },
       toggleTheme() {
         const nextTheme = theme === "dark" ? "light" : "dark"
         setThemeState(nextTheme)
-        window.localStorage.setItem(THEME_KEY, nextTheme)
+        safeLocalStorage.setItem(THEME_KEY, nextTheme)
         applyTheme(nextTheme, true)
       }
     }),

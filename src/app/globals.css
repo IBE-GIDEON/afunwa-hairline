@@ -143,3 +143,11 @@ html.dark .hover\:bg-white:hover {
 html.dark .active\:bg-slate-100:active {
   background-color: rgba(var(--color-brand), 0.14) !important;
 }
+
+/* Splash screen fallback: hides itself even if the app never hydrates. */
+@keyframes afunwa-splash-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}

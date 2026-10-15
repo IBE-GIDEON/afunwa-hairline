@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { hasSupabaseAdmin } from "@/lib/env"
 import { priceCart, toDeliveryDestination } from "@/lib/order-pricing"
+import { paymentMethodsFor } from "@/lib/payment-methods"
 import { sendPushNotification } from "@/lib/push"
 import { verifyAuthToken } from "@/lib/supabase/auth-guard"
 import { getSupabaseAdminClient } from "@/lib/supabase/server"
@@ -14,7 +15,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const payload = (await request.json()) as CheckoutPayload
+  const payload = (await request.json().catch(() => null)) as CheckoutPayload | null
+  if (!payload) {
+    return NextResponse.json({ error: "Invalid order." }, { status: 400 })
+  }
 
   // Prevent a user from placing orders on behalf of someone else
   if (payload.buyerId !== user.id) {
@@ -38,11 +42,6 @@ export async function POST(request: Request) {
     )
   }
 
-  const paymentMethod =
-    payload.paymentMethod === "vendor_transfer"
-      ? "vendor_transfer"
-      : "pay_on_delivery"
-
   /*
    * This route creates the orders where no money has moved yet — a transfer to
    * be confirmed, or cash on delivery. Neither is acceptable abroad: an
@@ -63,6 +62,20 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+
+  // Only what checkout actually offers here. Anything else used to be stored
+  // as pay-on-delivery, so a hand-made request could place an order the seller
+  // might ship with no money taken. Card goes through /api/paystack/initialize.
+  const offered: string[] = paymentMethodsFor(destinationCountry || "NG").filter(
+    (method) => method !== "paystack"
+  )
+  if (!payload.paymentMethod || !offered.includes(payload.paymentMethod)) {
+    return NextResponse.json(
+      { error: "That payment method is not available. Choose another one." },
+      { status: 400 }
+    )
+  }
+  const paymentMethod = payload.paymentMethod as "vendor_transfer" | "pay_on_delivery"
 
   const priced = await priceCart(
     supabase,
@@ -111,7 +124,11 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Order insert failed", error.message)
+    return NextResponse.json(
+      { error: "We could not place this order. Please try again." },
+      { status: 500 }
+    )
   }
 
   const { data: vendor } = await supabase

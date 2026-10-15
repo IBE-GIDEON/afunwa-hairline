@@ -25,9 +25,11 @@ export default function OrderConfirmationPage({
 }: {
   params: { id: string }
 }) {
-  const { clearCart } = useCart()
+  const { clearCart, items: cartItems } = useCart()
   const [order, setOrder] = useState<OrderDetail | null>(null)
   const [loadState, setLoadState] = useState<LoadState>("loading")
+  // Stopped checking without seeing the payment clear.
+  const [pollTimedOut, setPollTimedOut] = useState(false)
 
   const awaitingCard = order?.paymentStatus === "awaiting_card_payment"
   const paidByCard = order?.paymentStatus === "paid_by_card"
@@ -58,6 +60,7 @@ export default function OrderConfirmationPage({
     const timer = window.setInterval(() => {
       if (Date.now() - startedAt > POLL_FOR_MS) {
         window.clearInterval(timer)
+        setPollTimedOut(true)
         return
       }
       loadOrderDetail(params.id, { fresh: true })
@@ -75,9 +78,24 @@ export default function OrderConfirmationPage({
   // The cart is kept while the buyer is on Paystack, so an abandoned payment
   // does not cost them their basket. Once the money is in, it goes, so the
   // same basket cannot be paid for twice.
+  //
+  // Only when the cart still holds exactly this order. Opening an old paid
+  // order later must not wipe a new basket the buyer has started since.
+  const cartMatchesOrder = Boolean(
+    order &&
+      cartItems.length > 0 &&
+      cartItems.length === order.items.length &&
+      order.items.every((item) =>
+        cartItems.some(
+          (cartItem) =>
+            cartItem.productId === item.productId && cartItem.quantity === item.quantity
+        )
+      )
+  )
+
   useEffect(() => {
-    if (paidByCard) clearCart()
-  }, [paidByCard, clearCart])
+    if (paidByCard && cartMatchesOrder) clearCart()
+  }, [paidByCard, cartMatchesOrder, clearCart])
 
   const orderStatusMeta = order ? getOrderStatusMeta(order.status) : null
   const paymentMethodMeta = order ? getPaymentMethodMeta(order.paymentMethod) : null
@@ -94,7 +112,9 @@ export default function OrderConfirmationPage({
         </p>
         <p className="mt-2 text-sm leading-6 text-muted">
           {awaitingCard
-            ? "Keep this page open. It updates by itself as soon as your payment clears."
+            ? pollTimedOut
+              ? "This is taking longer than usual. If you were charged, your order will show as paid in All orders shortly. Do not pay again."
+              : "Keep this page open. It updates by itself as soon as your payment clears."
             : "Your seller will receive this order right away and confirm the next step from their store dashboard."}
         </p>
 
@@ -153,7 +173,9 @@ export default function OrderConfirmationPage({
                   ? "This order is set to pay on delivery. Inspect it first, then pay when it arrives."
                   : paidByCard
                     ? "Payment received. The seller has been notified and will get your order ready to ship."
-                    : "We are waiting for your payment to confirm. This page updates itself once it clears."}
+                    : pollTimedOut
+                      ? "We have not seen your payment clear yet. Check All orders in a few minutes before paying again."
+                      : "We are waiting for your payment to confirm. This page updates itself once it clears."}
             </p>
           </div>
         ) : null}

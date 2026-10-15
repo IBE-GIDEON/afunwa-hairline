@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   createContext,
   useContext,
@@ -27,6 +28,9 @@ interface CartContextValue extends CartState {
 
 const EMPTY_CART: CartState = { vendorId: null, items: [] }
 
+/** The server refuses more than this of one item, so the cart stops here too. */
+export const MAX_QUANTITY = 99
+
 const CartContext = createContext<CartContextValue | null>(null)
 
 /**
@@ -37,7 +41,7 @@ const CartContext = createContext<CartContextValue | null>(null)
  */
 function readSavedCart(): CartState {
   try {
-    const raw = window.localStorage.getItem(CART_KEY)
+    const raw = safeLocalStorage.getItem(CART_KEY)
     if (!raw) return EMPTY_CART
 
     const parsed = JSON.parse(raw) as Partial<CartState> | null
@@ -81,7 +85,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loaded) return
     try {
-      window.localStorage.setItem(CART_KEY, JSON.stringify(state))
+      safeLocalStorage.setItem(CART_KEY, JSON.stringify(state))
     } catch {
       // Full or blocked storage: the cart still works for this visit.
     }
@@ -105,7 +109,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               ...base,
               items: base.items.map((item) =>
                 item.productId === product.id
-                  ? { ...item, quantity: item.quantity + 1 }
+                  ? { ...item, quantity: Math.min(MAX_QUANTITY, item.quantity + 1) }
                   : item
               )
             }
@@ -135,7 +139,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         })
       },
       updateQuantity(productId: string, quantity: number) {
-        const safeQuantity = Number.isFinite(quantity) ? Math.floor(quantity) : 0
+        const safeQuantity = Number.isFinite(quantity)
+          ? Math.min(MAX_QUANTITY, Math.floor(quantity))
+          : 0
         setState((current) => {
           const nextItems = current.items
             .map((item) =>
