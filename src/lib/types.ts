@@ -107,6 +107,12 @@ export interface Order {
   trackingCarrier?: string
   trackingUrl?: string
   deliveryAddress: string
+  /** "pickup", "local" or "courier" (international). */
+  shippingMethod?: string
+  /** The delivery option the buyer chose, e.g. "Lagos Island". */
+  deliveryOptionLabel?: string
+  /** What the buyer was charged for delivery. Zero when confirmed later. */
+  deliveryFee?: number
   createdAt: string
 }
 

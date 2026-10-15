@@ -287,6 +287,15 @@ function normalizeCachedOrder(value: unknown): OrderDetail | null {
     deliveryAddress: String(
       row.deliveryAddress ?? row.delivery_address ?? ""
     ),
+    shippingMethod: (row.shippingMethod ?? row.shipping_method)
+      ? String(row.shippingMethod ?? row.shipping_method)
+      : undefined,
+    deliveryOptionLabel: (row.deliveryOptionLabel ?? row.delivery_option_label)
+      ? String(row.deliveryOptionLabel ?? row.delivery_option_label)
+      : undefined,
+    deliveryFee: Number.isFinite(Number(row.deliveryFee ?? row.delivery_fee))
+      ? Number(row.deliveryFee ?? row.delivery_fee)
+      : undefined,
     createdAt: String(row.createdAt ?? row.created_at ?? new Date().toISOString()),
     vendor: normalizeCachedVendor(row.vendor ?? row.vendor_profiles) ?? undefined,
     buyer: normalizeCachedUser(row.buyer) ?? undefined
@@ -1025,6 +1034,13 @@ function mapOrder(row: Record<string, unknown>, vendor?: VendorProfile): OrderDe
     trackingCarrier: row.tracking_carrier ? String(row.tracking_carrier) : undefined,
     trackingUrl: row.tracking_url ? String(row.tracking_url) : undefined,
     deliveryAddress: String(row.delivery_address ?? ""),
+    shippingMethod: row.shipping_method ? String(row.shipping_method) : undefined,
+    deliveryOptionLabel: row.delivery_option_label
+      ? String(row.delivery_option_label)
+      : undefined,
+    deliveryFee: row.delivery_fee != null && Number.isFinite(Number(row.delivery_fee))
+      ? Number(row.delivery_fee)
+      : undefined,
     createdAt: String(row.created_at ?? new Date().toISOString()),
     vendor: nestedVendor
   }

@@ -409,6 +409,31 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           ))}
         </div>
 
+        {/* How it is getting there, and what that cost. The seller needs
+            this to know whether to book a rider, a park or international. */}
+        {order.deliveryOptionLabel || order.shippingMethod ? (
+          <div className="mt-5 flex items-start justify-between gap-3 rounded-2xl bg-canvas p-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted">Delivery</p>
+              <p className="mt-2 text-sm font-semibold text-ink">
+                {order.deliveryOptionLabel ??
+                  (order.shippingMethod === "pickup"
+                    ? "Pickup"
+                    : order.shippingMethod === "courier"
+                      ? "International delivery"
+                      : "Local delivery")}
+              </p>
+            </div>
+            <p className="mt-6 text-sm font-semibold text-ink">
+              {order.shippingMethod === "pickup"
+                ? "Free"
+                : order.deliveryFee && order.deliveryFee > 0
+                  ? formatCurrency(order.deliveryFee)
+                  : "To be confirmed"}
+            </p>
+          </div>
+        ) : null}
+
         {/* Drop-off location */}
         {buyerCanEditDelivery || order.deliveryAddress ? (
           <div className="mt-5 rounded-2xl bg-canvas p-4">

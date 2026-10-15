@@ -25,10 +25,47 @@ interface CartContextValue extends CartState {
   itemCount: number
 }
 
+const EMPTY_CART: CartState = { vendorId: null, items: [] }
+
 const CartContext = createContext<CartContextValue | null>(null)
 
+/**
+ * The saved cart, or an empty one.
+ *
+ * Valid JSON is not the same as a valid cart: a stored null, {} or an item
+ * with no price used to reach the totals below and throw on every page.
+ */
+function readSavedCart(): CartState {
+  try {
+    const raw = window.localStorage.getItem(CART_KEY)
+    if (!raw) return EMPTY_CART
+
+    const parsed = JSON.parse(raw) as Partial<CartState> | null
+    if (!parsed || !Array.isArray(parsed.items)) return EMPTY_CART
+
+    const items = parsed.items.filter(
+      (item): item is OrderItem =>
+        Boolean(item) &&
+        typeof item.productId === "string" &&
+        typeof item.name === "string" &&
+        Number.isFinite(item.price) &&
+        Number.isInteger(item.quantity) &&
+        item.quantity > 0
+    )
+
+    return {
+      vendorId: items.length && typeof parsed.vendorId === "string" ? parsed.vendorId : null,
+      items
+    }
+  } catch {
+    // Storage blocked (private browsing) or a corrupt entry: start empty
+    // rather than trapping the buyer on a basket that throws on every load.
+    return EMPTY_CART
+  }
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<CartState>({ vendorId: null, items: [] })
+  const [state, setState] = useState<CartState>(EMPTY_CART)
   // The saved cart cannot be read during render without breaking hydration —
   // the server has no localStorage — so it arrives one pass later. Until it
   // does, writing would persist the empty state we started with and destroy
@@ -37,27 +74,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
-    const existing = window.localStorage.getItem(CART_KEY)
-    if (existing) {
-      try {
-        setState(JSON.parse(existing) as CartState)
-      } catch {
-        // Corrupt entry: start empty rather than trapping the buyer on a
-        // basket that throws every time the app boots.
-      }
-    }
+    setState(readSavedCart())
     setLoaded(true)
   }, [])
 
   useEffect(() => {
     if (!loaded) return
-    window.localStorage.setItem(CART_KEY, JSON.stringify(state))
+    try {
+      window.localStorage.setItem(CART_KEY, JSON.stringify(state))
+    } catch {
+      // Full or blocked storage: the cart still works for this visit.
+    }
   }, [state, loaded])
 
-  const value = useMemo<CartContextValue>(() => {
-    return {
-      ...state,
-      addItem(vendorId, product) {
+  // Built once. Every action works from the current state it is handed, so
+  // none of them needs to change identity when the cart does, and a page can
+  // depend on them in an effect without looping.
+  const actions = useMemo(
+    () => ({
+      addItem(vendorId: string, product: Product) {
         setState((current) => {
           const base =
             current.vendorId && current.vendorId !== vendorId
@@ -90,7 +125,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
         })
       },
-      removeItem(productId) {
+      removeItem(productId: string) {
         setState((current) => {
           const nextItems = current.items.filter((item) => item.productId !== productId)
           return {
@@ -99,11 +134,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
         })
       },
-      updateQuantity(productId, quantity) {
+      updateQuantity(productId: string, quantity: number) {
+        const safeQuantity = Number.isFinite(quantity) ? Math.floor(quantity) : 0
         setState((current) => {
           const nextItems = current.items
             .map((item) =>
-              item.productId === productId ? { ...item, quantity } : item
+              item.productId === productId ? { ...item, quantity: safeQuantity } : item
             )
             .filter((item) => item.quantity > 0)
 
@@ -114,12 +150,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         })
       },
       clearCart() {
-        setState({ vendorId: null, items: [] })
-      },
+        // Already empty: keep the same state, so nothing re-renders.
+        setState((current) =>
+          current.items.length === 0 && current.vendorId === null ? current : EMPTY_CART
+        )
+      }
+    }),
+    []
+  )
+
+  const value = useMemo<CartContextValue>(
+    () => ({
+      ...state,
+      ...actions,
       subtotal: state.items.reduce((sum, item) => sum + item.price * item.quantity, 0),
       itemCount: state.items.reduce((sum, item) => sum + item.quantity, 0)
-    }
-  }, [state])
+    }),
+    [state, actions]
+  )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
