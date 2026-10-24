@@ -1,4 +1,4 @@
-const STATIC_CACHE = "glowgram-static-v6"
+const STATIC_CACHE = "glowgram-static-v7"
 const VENDOR_CACHE = "glowgram-vendors-v1"
 const IMAGE_CACHE = "glowgram-images-v2"
 const ORDER_DB = "glowgram-offline"
@@ -156,6 +156,17 @@ async function cacheFirst(request, cacheName, limit) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request)
+    // Keep the offline copy of a saved page current. It was stored once, at
+    // install, and never refreshed, so offline visitors got months-old HTML
+    // pointing at script files that no longer exist. Only pages already in
+    // the cache are refreshed, so the cache does not grow.
+    if (response.ok && request.mode === "navigate") {
+      const cache = await caches.open(STATIC_CACHE)
+      if (await cache.match(request)) {
+        // Not awaited: the visitor gets the page without waiting on the write.
+        cache.put(request, response.clone()).catch(() => undefined)
+      }
+    }
     return response
   } catch (error) {
     const cached = await caches.match(request)
