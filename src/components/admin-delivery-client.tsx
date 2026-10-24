@@ -181,11 +181,11 @@ export function AdminDeliveryClient() {
       // Pickup is always free, whatever is stored. Every other option needs a
       // real fee: a blank box used to save as ₦0, which is free delivery.
       const isPickup = option.id === "pickup"
-      if (!isPickup && option.fee.trim() === "") {
+      if (!isPickup && option.active && option.fee.trim() === "") {
         setMessage({ tone: "error", text: `Enter a fee for ${option.label}, or switch it off.` })
         return
       }
-      const fee = isPickup ? 0 : Number(option.fee)
+      const fee = isPickup || option.fee.trim() === "" ? 0 : Number(option.fee)
       if (!Number.isFinite(fee) || fee < 0) {
         setMessage({ tone: "error", text: `Enter a valid fee for ${option.label}.` })
         return

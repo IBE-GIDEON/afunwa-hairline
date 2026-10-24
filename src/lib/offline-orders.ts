@@ -117,7 +117,12 @@ async function flushQueueOnce() {
     // 400 is priceCart refusing the cart outright — stock gone, product
     // deleted. That will never succeed, so drop it rather than retry forever
     // and fill the queue. A 401 or a 5xx may well recover, so those stay.
-    if (response.ok || response.status === 400) {
+    // Any 4xx except 401 is a refusal that will never succeed (sold out, no
+    // longer available, a method no longer offered), so drop it. A 401 (the
+    // session) and any 5xx (a hiccup) may recover, so those stay queued.
+    const permanentRefusal =
+      response.status >= 400 && response.status < 500 && response.status !== 401
+    if (response.ok || permanentRefusal) {
       await db.delete(OFFLINE_ORDER_STORE, entry.id)
     }
   }

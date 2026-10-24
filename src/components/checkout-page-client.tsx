@@ -628,6 +628,7 @@ export function CheckoutPageClient() {
           isAbroad={isAbroad}
           deliveryFee={deliveryFee}
           confirmLater={delivery.confirmLater}
+          deliveryChosen={Boolean(choice)}
           total={orderTotal}
           money={money}
           canConfirm={canConfirm}
@@ -892,6 +893,7 @@ function OrderSummary({
   isAbroad,
   deliveryFee,
   confirmLater,
+  deliveryChosen,
   total,
   money,
   canConfirm,
@@ -904,6 +906,8 @@ function OrderSummary({
   isAbroad: boolean
   deliveryFee: number
   confirmLater: boolean
+  /** False until a Nigerian buyer has picked an area. */
+  deliveryChosen: boolean
   total: number
   money: (amount: number) => { text: string }
   canConfirm: boolean
@@ -927,10 +931,16 @@ function OrderSummary({
           <span
             className={cn(
               "font-semibold",
-              confirmLater ? "text-muted" : deliveryFee > 0 ? "text-ink" : "text-success"
+              !deliveryChosen || confirmLater
+                ? "text-muted"
+                : deliveryFee > 0
+                  ? "text-ink"
+                  : "text-success"
             )}
           >
-            {confirmLater
+            {!deliveryChosen
+              ? "Choose delivery"
+              : confirmLater
               ? "To be confirmed"
               : deliveryFee > 0
                 ? money(deliveryFee).text

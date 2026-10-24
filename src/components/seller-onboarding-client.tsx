@@ -58,35 +58,64 @@ export function SellerOnboardingClient() {
   // yet, or an older copy saved on this device. Saving that wrote stale values
   // over newer ones. When fresher data arrives, take it, unless the seller has
   // already started typing.
+  // What the form was last filled with. Compared against the form itself, not
+  // recomputed: a phone number arriving with the profile made the old check
+  // think the seller had typed, so an existing store opened blank, and saving
+  // that blank form cleared the bank details.
+  const seededValuesRef = useRef({
+    storeName,
+    category,
+    storePhotoUrl,
+    bio,
+    city,
+    whatsappNumber,
+    bankName,
+    accountName,
+    accountNumber,
+    paymentNote
+  })
   const seededFromRef = useRef(vendorProfile)
   useEffect(() => {
     if (!vendorProfile || vendorProfile === seededFromRef.current) return
-    const previous = seededFromRef.current
     seededFromRef.current = vendorProfile
 
+    const seeded = seededValuesRef.current
     const untouched =
-      storeName === (previous?.storeName ?? "") &&
-      category === (previous?.category ?? "wigs") &&
-      storePhotoUrl === (previous?.storePhotoUrl ?? "") &&
-      bio === (previous?.bio ?? "") &&
-      city === (previous?.city ?? "") &&
-      whatsappNumber === (previous?.whatsappNumber || profile?.phone || "+234") &&
-      bankName === (previous?.bankName ?? "") &&
-      accountName === (previous?.accountName ?? "") &&
-      accountNumber === (previous?.accountNumber ?? "") &&
-      paymentNote === (previous?.paymentNote ?? "")
+      storeName === seeded.storeName &&
+      category === seeded.category &&
+      storePhotoUrl === seeded.storePhotoUrl &&
+      bio === seeded.bio &&
+      city === seeded.city &&
+      whatsappNumber === seeded.whatsappNumber &&
+      bankName === seeded.bankName &&
+      accountName === seeded.accountName &&
+      accountNumber === seeded.accountNumber &&
+      paymentNote === seeded.paymentNote
     if (!untouched) return
 
-    setStoreName(vendorProfile.storeName ?? "")
-    setCategory(vendorProfile.category ?? "wigs")
-    setStorePhotoUrl(vendorProfile.storePhotoUrl ?? "")
-    setBio(vendorProfile.bio ?? "")
-    setCity(vendorProfile.city ?? "")
-    setWhatsappNumber(vendorProfile.whatsappNumber || profile?.phone || "+234")
-    setBankName(vendorProfile.bankName ?? "")
-    setAccountName(vendorProfile.accountName ?? "")
-    setAccountNumber(vendorProfile.accountNumber ?? "")
-    setPaymentNote(vendorProfile.paymentNote ?? "")
+    const next = {
+      storeName: vendorProfile.storeName ?? "",
+      category: vendorProfile.category ?? seeded.category,
+      storePhotoUrl: vendorProfile.storePhotoUrl ?? "",
+      bio: vendorProfile.bio ?? "",
+      city: vendorProfile.city ?? "",
+      whatsappNumber: vendorProfile.whatsappNumber || profile?.phone || "+234",
+      bankName: vendorProfile.bankName ?? "",
+      accountName: vendorProfile.accountName ?? "",
+      accountNumber: vendorProfile.accountNumber ?? "",
+      paymentNote: vendorProfile.paymentNote ?? ""
+    }
+    seededValuesRef.current = next
+    setStoreName(next.storeName)
+    setCategory(next.category)
+    setStorePhotoUrl(next.storePhotoUrl)
+    setBio(next.bio)
+    setCity(next.city)
+    setWhatsappNumber(next.whatsappNumber)
+    setBankName(next.bankName)
+    setAccountName(next.accountName)
+    setAccountNumber(next.accountNumber)
+    setPaymentNote(next.paymentNote)
     // Runs only when the store data itself changes; the form values are read
     // to tell whether the seller has typed, not to re-run on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -94,7 +94,12 @@ export async function POST(request: Request) {
       status:
         order.status === "pending" || order.status === "cancelled"
           ? "confirmed"
-          : order.status
+          : order.status,
+      // A cancelled order may have been hidden from the lists. A paid one must
+      // show again, or the seller is told it is back but cannot find it.
+      ...(order.status === "cancelled"
+        ? { seller_hidden_at: null, buyer_hidden_at: null }
+        : {})
     })
     .eq("id", order.id)
     .neq("payment_status", "paid_by_card")
