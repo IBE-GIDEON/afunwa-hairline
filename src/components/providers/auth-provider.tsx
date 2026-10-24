@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   createContext,
   useCallback,
@@ -13,6 +14,7 @@ import toast from "react-hot-toast"
 import { AUTH_SNAPSHOT_KEY, DEMO_USER_KEY } from "@/lib/constants"
 import { canUseDemoMode, env } from "@/lib/env"
 import {
+  clearUserProfileCache,
   findOrCreateDemoUser,
   loadUserProfile,
   loadVendorProfile,
@@ -55,7 +57,7 @@ function readAuthSnapshot(): AuthSnapshot {
     }
   }
 
-  const raw = window.localStorage.getItem(AUTH_SNAPSHOT_KEY)
+  const raw = safeLocalStorage.getItem(AUTH_SNAPSHOT_KEY)
   if (!raw) {
     return {
       sessionUserId: null,
@@ -86,7 +88,7 @@ function clearAuthSnapshot() {
     return
   }
 
-  window.localStorage.removeItem(AUTH_SNAPSHOT_KEY)
+  safeLocalStorage.removeItem(AUTH_SNAPSHOT_KEY)
 }
 
 function saveAuthSnapshot(snapshot: AuthSnapshot) {
@@ -94,7 +96,7 @@ function saveAuthSnapshot(snapshot: AuthSnapshot) {
     return
   }
 
-  window.localStorage.setItem(AUTH_SNAPSHOT_KEY, JSON.stringify(snapshot))
+  safeLocalStorage.setItem(AUTH_SNAPSHOT_KEY, JSON.stringify(snapshot))
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -212,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function bootstrap() {
       try {
         if (isDemoMode) {
-          const storedUserId = window.localStorage.getItem(DEMO_USER_KEY)
+          const storedUserId = safeLocalStorage.getItem(DEMO_USER_KEY)
           if (storedUserId && !ignore) {
             setSessionUserId(storedUserId)
             await refreshProfile(storedUserId)
@@ -296,7 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           accountType: "buyer"
         })
 
-        window.localStorage.setItem(DEMO_USER_KEY, user.id)
+        safeLocalStorage.setItem(DEMO_USER_KEY, user.id)
         setSessionUserId(user.id)
         await refreshProfile(user.id)
         toast.success("Signed in successfully.")
@@ -363,7 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...values,
           email: normalizedEmail
         })
-        window.localStorage.setItem(DEMO_USER_KEY, user.id)
+        safeLocalStorage.setItem(DEMO_USER_KEY, user.id)
         setSessionUserId(user.id)
         await refreshProfile(user.id)
         toast.success("Account created.")
@@ -537,7 +539,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (isDemoMode) {
-      window.localStorage.removeItem(DEMO_USER_KEY)
+      safeLocalStorage.removeItem(DEMO_USER_KEY)
       clearAuthSnapshot()
       setSessionUserId(null)
       setProfile(null)
@@ -582,6 +584,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error
       }
 
+      // The cached profile still says the old type. Left in place, the
+      // refresh that follows read it back, and a new seller lost Edit Store
+      // and Manage Products for up to ten minutes.
+      clearUserProfileCache(sessionUserId)
       setProfile((current) =>
         current ? { ...current, accountType: nextType } : current
       )

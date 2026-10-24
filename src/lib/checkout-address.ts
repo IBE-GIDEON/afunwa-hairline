@@ -1,3 +1,4 @@
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   DEFAULT_COUNTRY_CODE,
   getCountryName,
@@ -43,7 +44,7 @@ const STORAGE_KEY = "afunwa-checkout-address-v1"
 export function loadSavedAddress(): CheckoutAddress | null {
   if (typeof window === "undefined") return null
 
-  const raw = window.localStorage.getItem(STORAGE_KEY)
+  const raw = safeLocalStorage.getItem(STORAGE_KEY)
   if (!raw) return null
 
   try {
@@ -59,7 +60,7 @@ export function loadSavedAddress(): CheckoutAddress | null {
 
 export function persistAddress(address: CheckoutAddress) {
   if (typeof window === "undefined") return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(address))
+  safeLocalStorage.setItem(STORAGE_KEY, JSON.stringify(address))
 }
 
 /**

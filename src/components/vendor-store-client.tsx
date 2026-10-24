@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { ImageViewer, viewableImages } from "@/components/image-viewer"
 import { useEffect, useMemo, useRef, useState } from "react"
 import toast from "react-hot-toast"
@@ -94,8 +95,30 @@ export function VendorStoreClient({
     }
   }
 
+  // Set only when nothing is on screen yet: a deleted or mistyped store link
+  // used to show "Loading store..." forever.
+  const [storeMissing, setStoreMissing] = useState(false)
+  const [storeFailed, setStoreFailed] = useState(false)
+
   useEffect(() => {
-    loadVendorDetail(vendorId).then(setData)
+    let ignore = false
+    loadVendorDetail(vendorId)
+      .then((next) => {
+        if (ignore) return
+        if (next) {
+          setData(next)
+          setStoreMissing(false)
+          setStoreFailed(false)
+        } else {
+          setStoreMissing(true)
+        }
+      })
+      .catch(() => {
+        if (!ignore) setStoreFailed(true)
+      })
+    return () => {
+      ignore = true
+    }
     // refreshToken ticks when a background check finds this store changed.
   }, [vendorId, refreshToken])
 
@@ -132,6 +155,26 @@ export function VendorStoreClient({
   }, [selectedProduct?.id])
 
   if (!data) {
+    if (storeMissing || storeFailed) {
+      return (
+        <div className="mx-auto w-full max-w-[640px] px-4 py-16 text-center">
+          <h1 className="text-xl font-bold text-ink">
+            {storeMissing ? "This store is not available" : "This store could not load"}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            {storeMissing
+              ? "The link may be old, or the store may be closed. Everything in stock is in the shop."
+              : "Check your connection and refresh the page."}
+          </p>
+          <Link
+            href="/search"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-chrome px-5 py-3 text-sm font-semibold text-white"
+          >
+            Browse the shop
+          </Link>
+        </div>
+      )
+    }
     return <div className="p-4 text-sm text-muted">Loading store...</div>
   }
 

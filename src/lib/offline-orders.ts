@@ -54,7 +54,39 @@ export async function queueOfflineOrder(payload: CheckoutPayload) {
   }
 }
 
-export async function flushOfflineOrders() {
+/** The flush running in this tab, if any. */
+let flushInProgress: Promise<void> | null = null
+
+/**
+ * Sends queued offline orders, one flush at a time.
+ *
+ * Reconnecting fires both the browser's "online" event and the service
+ * worker's sync message, often in several tabs at once. Each used to read the
+ * same queue and post every entry, so one offline order arrived two or three
+ * times. A Web Lock covers every tab; where the browser has none, a promise
+ * covers this tab. A flush that finds one already running steps aside, since
+ * that one sends everything.
+ */
+export async function flushOfflineOrders(): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    await navigator.locks.request(
+      "afunwa-offline-order-flush",
+      { ifAvailable: true },
+      async (lock) => {
+        if (lock) await flushQueueOnce()
+      }
+    )
+    return
+  }
+
+  if (flushInProgress) return flushInProgress
+  flushInProgress = flushQueueOnce().finally(() => {
+    flushInProgress = null
+  })
+  return flushInProgress
+}
+
+async function flushQueueOnce() {
   // /api/orders/sync requires a bearer token. Without one every queued order
   // answered 401 and stayed in the queue forever, so an order placed offline
   // never reached the seller and the buyer was never told.
@@ -85,7 +117,12 @@ export async function flushOfflineOrders() {
     // 400 is priceCart refusing the cart outright — stock gone, product
     // deleted. That will never succeed, so drop it rather than retry forever
     // and fill the queue. A 401 or a 5xx may well recover, so those stay.
-    if (response.ok || response.status === 400) {
+    // Any 4xx except 401 is a refusal that will never succeed (sold out, no
+    // longer available, a method no longer offered), so drop it. A 401 (the
+    // session) and any 5xx (a hiccup) may recover, so those stay queued.
+    const permanentRefusal =
+      response.status >= 400 && response.status < 500 && response.status !== 401
+    if (response.ok || permanentRefusal) {
       await db.delete(OFFLINE_ORDER_STORE, entry.id)
     }
   }

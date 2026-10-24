@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import { createId } from "@/lib/utils"
 import {
   createOrderDemo,
@@ -287,6 +288,15 @@ function normalizeCachedOrder(value: unknown): OrderDetail | null {
     deliveryAddress: String(
       row.deliveryAddress ?? row.delivery_address ?? ""
     ),
+    shippingMethod: (row.shippingMethod ?? row.shipping_method)
+      ? String(row.shippingMethod ?? row.shipping_method)
+      : undefined,
+    deliveryOptionLabel: (row.deliveryOptionLabel ?? row.delivery_option_label)
+      ? String(row.deliveryOptionLabel ?? row.delivery_option_label)
+      : undefined,
+    deliveryFee: Number.isFinite(Number(row.deliveryFee ?? row.delivery_fee))
+      ? Number(row.deliveryFee ?? row.delivery_fee)
+      : undefined,
     createdAt: String(row.createdAt ?? row.created_at ?? new Date().toISOString()),
     vendor: normalizeCachedVendor(row.vendor ?? row.vendor_profiles) ?? undefined,
     buyer: normalizeCachedUser(row.buyer) ?? undefined
@@ -564,7 +574,7 @@ function getPersistedCacheStore(): PersistedCacheStore {
     return {}
   }
 
-  const raw = window.localStorage.getItem(PERSISTED_CACHE_KEY)
+  const raw = safeLocalStorage.getItem(PERSISTED_CACHE_KEY)
   if (!raw) {
     return {}
   }
@@ -576,12 +586,39 @@ function getPersistedCacheStore(): PersistedCacheStore {
   }
 }
 
+/** Most entries kept, and the most bytes, in the shared offline cache. */
+const PERSISTED_CACHE_MAX_ENTRIES = 40
+const PERSISTED_CACHE_MAX_CHARS = 1_500_000
+
+/**
+ * Saves the shared cache, tidied first.
+ *
+ * It used to grow forever: an entry was only removed when that exact key was
+ * read again, and every search got its own key. Once the browser's storage was
+ * full, every write threw, and signing in broke with it. Now expired entries
+ * go on every write, the newest are kept within a size budget, and if the
+ * browser still refuses, the cache is dropped rather than the page.
+ */
 function savePersistedCacheStore(store: PersistedCacheStore) {
   if (typeof window === "undefined") {
     return
   }
 
-  window.localStorage.setItem(PERSISTED_CACHE_KEY, JSON.stringify(store))
+  const now = Date.now()
+  let entries = Object.entries(store)
+    .filter(([, entry]) => entry && entry.expiresAt > now)
+    .sort(([, a], [, b]) => b.expiresAt - a.expiresAt)
+    .slice(0, PERSISTED_CACHE_MAX_ENTRIES)
+
+  let serialized = JSON.stringify(Object.fromEntries(entries))
+  while (serialized.length > PERSISTED_CACHE_MAX_CHARS && entries.length > 1) {
+    entries = entries.slice(0, Math.ceil(entries.length / 2))
+    serialized = JSON.stringify(Object.fromEntries(entries))
+  }
+
+  if (!safeLocalStorage.setItem(PERSISTED_CACHE_KEY, serialized)) {
+    safeLocalStorage.removeItem(PERSISTED_CACHE_KEY)
+  }
 }
 
 function readPersistedCache<T>(key: string): T | null {
@@ -924,7 +961,7 @@ function getHiddenOrdersStore(): HiddenOrdersStore {
     return { buyer: {}, seller: {} }
   }
 
-  const raw = window.localStorage.getItem(HIDDEN_ORDERS_KEY)
+  const raw = safeLocalStorage.getItem(HIDDEN_ORDERS_KEY)
   if (!raw) {
     return { buyer: {}, seller: {} }
   }
@@ -945,7 +982,7 @@ function saveHiddenOrdersStore(store: HiddenOrdersStore) {
     return
   }
 
-  window.localStorage.setItem(HIDDEN_ORDERS_KEY, JSON.stringify(store))
+  safeLocalStorage.setItem(HIDDEN_ORDERS_KEY, JSON.stringify(store))
 }
 
 function getHiddenOrderIds(actor: OrderArchiveActor, userId: string) {
@@ -1025,6 +1062,13 @@ function mapOrder(row: Record<string, unknown>, vendor?: VendorProfile): OrderDe
     trackingCarrier: row.tracking_carrier ? String(row.tracking_carrier) : undefined,
     trackingUrl: row.tracking_url ? String(row.tracking_url) : undefined,
     deliveryAddress: String(row.delivery_address ?? ""),
+    shippingMethod: row.shipping_method ? String(row.shipping_method) : undefined,
+    deliveryOptionLabel: row.delivery_option_label
+      ? String(row.delivery_option_label)
+      : undefined,
+    deliveryFee: row.delivery_fee != null && Number.isFinite(Number(row.delivery_fee))
+      ? Number(row.delivery_fee)
+      : undefined,
     createdAt: String(row.created_at ?? new Date().toISOString()),
     vendor: nestedVendor
   }
@@ -2039,6 +2083,23 @@ export async function loadSellerOrders(
     .filter((r) => !hiddenIds.has(String(r.id)))
     .map((r) => mapOrder(r, vendor))
 
+  // 3. Buyers' names in one query, so the seller can tell orders apart. Every
+  //    row used to read "Customer order". Best effort: no names, no failure.
+  const buyerIds = [...new Set(orders.map((order) => order.buyerId).filter(Boolean))]
+  if (buyerIds.length > 0) {
+    const { data: buyerRows } = await supabase
+      .from("users")
+      .select("id, full_name, phone, profile_photo_url, email, account_type, created_at")
+      .in("id", buyerIds)
+    const buyersById = new Map(
+      (buyerRows ?? []).map((row) => [String(row.id), mapUser(row as Record<string, unknown>)])
+    )
+    for (const order of orders) {
+      const buyer = buyersById.get(order.buyerId)
+      if (buyer) order.buyer = buyer
+    }
+  }
+
   return writeHybridCache(
     sellerOrdersCache,
     userId,
@@ -2183,7 +2244,7 @@ export async function loadStoreAnalytics(userId: string): Promise<StoreAnalytics
 
     const { data, error } = await supabase
       .from("orders")
-      .select("id, total_amount, status")
+      .select("id, total_amount, status, payment_status")
       .eq("vendor_id", vendor.id)
 
     if (error || !data) {
@@ -2197,9 +2258,16 @@ export async function loadStoreAnalytics(userId: string): Promise<StoreAnalytics
       userId,
       persistedCacheKeys.storeAnalytics(userId),
       {
-        totalOrders: data.length,
+        // A card checkout the buyer never paid is not an order or revenue.
+        totalOrders: data.filter(
+          (order) => String(order.payment_status) !== "awaiting_card_payment"
+        ).length,
         totalRevenue: data
-          .filter((order) => String(order.status) !== "cancelled")
+          .filter(
+            (order) =>
+              String(order.status) !== "cancelled" &&
+              String(order.payment_status) !== "awaiting_card_payment"
+          )
           .reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0),
         averageRating: vendor.rating
       }
@@ -2303,6 +2371,12 @@ export async function loadUserProfile(userId: string) {
   })
 }
 
+/** Forget a cached profile, so the next read comes from the database. */
+export function clearUserProfileCache(userId: string) {
+  deletePersistedCache(persistedCacheKeys.userProfile(userId))
+  userProfileCache.delete(userId)
+}
+
 export async function saveUserProfile(input: UserProfile) {
   if (!hasSupabase) {
     if (canUseDemoMode) {
@@ -2371,10 +2445,13 @@ export async function saveSellerProfile(
         bio: input.bio,
         city: input.city,
         whatsapp_number: input.whatsappNumber,
-        bank_name: input.bankName,
-        account_name: input.accountName,
-        account_number: input.accountNumber,
-        payment_note: input.paymentNote,
+        // Null, not undefined, for an emptied field. Undefined is left out of
+        // the request, so the old account number stayed and buyers kept
+        // seeing it after the seller had removed it.
+        bank_name: input.bankName?.trim() || null,
+        account_name: input.accountName?.trim() || null,
+        account_number: input.accountNumber?.trim() || null,
+        payment_note: input.paymentNote?.trim() || null,
         is_active: true
       },
       // Conflict on user_id, not on the primary key. No id is sent here, so

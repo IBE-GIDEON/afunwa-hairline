@@ -20,16 +20,12 @@ export function ServiceWorkerRegister() {
       return
     }
 
-    const hadController = Boolean(navigator.serviceWorker.controller)
-    let controllerReloaded = false
     let updateInterval: ReturnType<typeof setInterval> | null = null
 
-    const reloadOnControllerChange = () => {
-      if (!hadController) return
-      if (controllerReloaded) return
-      controllerReloaded = true
-      window.location.reload()
-    }
+    // There is deliberately no reload when a new worker takes over. It used to
+    // reload the page on the spot, so a shopper typing their address at
+    // checkout lost it the moment a deploy went out. Pages always come from the
+    // network, so the next page load is current anyway.
 
     const checkForUpdate = async (registration?: ServiceWorkerRegistration) => {
       try {
@@ -40,11 +36,6 @@ export function ServiceWorkerRegister() {
         // Update checks should never interrupt app usage.
       }
     }
-
-    navigator.serviceWorker.addEventListener(
-      "controllerchange",
-      reloadOnControllerChange
-    )
 
     navigator.serviceWorker
       .register("/sw.js")
@@ -85,10 +76,6 @@ export function ServiceWorkerRegister() {
       window.removeEventListener("online", flush)
       window.removeEventListener("focus", checkForUpdateFromFocus)
       document.removeEventListener("visibilitychange", refreshWhenVisible)
-      navigator.serviceWorker.removeEventListener(
-        "controllerchange",
-        reloadOnControllerChange
-      )
       navigator.serviceWorker.removeEventListener("message", onWorkerMessage)
       if (updateInterval) {
         clearInterval(updateInterval)

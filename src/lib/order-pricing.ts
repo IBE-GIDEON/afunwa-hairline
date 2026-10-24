@@ -84,7 +84,13 @@ export async function priceCart(
     .in("id", [...requested.keys()])
 
   if (error) {
-    return { ok: false, status: 500, error: error.message }
+    // Logged for us; the buyer gets a message they can act on, not Postgres.
+    console.error("priceCart product read failed", error.message)
+    return {
+      ok: false,
+      status: 503,
+      error: "We could not check prices just now. Please try again."
+    }
   }
 
   if (!rows || rows.length !== requested.size) {
@@ -101,6 +107,16 @@ export async function priceCart(
       ok: false,
       status: 409,
       error: `${String(outOfStock.name)} just went out of stock.`
+    }
+  }
+
+  // A zero or negative price is a listing mistake, never a sale.
+  const unpriced = rows.find((row) => !(Number(row.price) > 0))
+  if (unpriced) {
+    return {
+      ok: false,
+      status: 409,
+      error: `${String(unpriced.name)} is not available to buy right now.`
     }
   }
 

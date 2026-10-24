@@ -4,6 +4,7 @@ import { VendorStoreClient } from "@/components/vendor-store-client"
 import { formatCurrency } from "@/lib/format"
 import { normalizeProductPhotoUrls } from "@/lib/product-images"
 import { getSupabaseServerClient } from "@/lib/supabase/server"
+import { firstParam } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Dynamic metadata — every vendor store gets its own OG card when shared, and
@@ -15,7 +16,7 @@ export async function generateMetadata({
   searchParams
 }: {
   params: { id: string }
-  searchParams?: { product?: string }
+  searchParams?: { product?: string | string[] }
 }): Promise<Metadata> {
   const supabase = getSupabaseServerClient()
 
@@ -23,7 +24,7 @@ export async function generateMetadata({
     return { title: "Store — Afunwa" }
   }
 
-  const productId = searchParams?.product?.trim()
+  const productId = firstParam(searchParams?.product)?.trim()
 
   const [{ data: vendor }, { data: product }] = await Promise.all([
     supabase
@@ -122,12 +123,12 @@ export default function VendorPage({
   searchParams
 }: {
   params: { id: string }
-  searchParams?: { product?: string }
+  searchParams?: { product?: string | string[] }
 }) {
   return (
     <VendorStoreClient
       vendorId={params.id}
-      initialProductId={searchParams?.product}
+      initialProductId={firstParam(searchParams?.product)}
     />
   )
 }

@@ -7,6 +7,7 @@ import { FiMessageCircle, FiRefreshCw } from "react-icons/fi"
 
 import { useAuth } from "@/components/providers/auth-provider"
 import { buildTrackingUrl, formatTrackingLabel } from "@/lib/tracking"
+import { buildWhatsAppUrl } from "@/lib/whatsapp"
 import {
   Badge,
   Button,
@@ -276,6 +277,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
     if (!isSeller || !order) return null
     if (order.status === "cancelled") return "This order was cancelled."
     if (order.status === "delivered") return "The buyer has confirmed this delivery."
+    if (order.paymentMethod === "paystack" && order.paymentStatus !== "paid_by_card") {
+      return "The buyer has not finished paying by card. Do not ship until this order shows as paid. It confirms itself when the payment clears."
+    }
     if (order.paymentMethod === "vendor_transfer" && order.status === "confirmed") {
       return order.paymentStatus === "paid_to_vendor"
         ? "Direct payment confirmed — you can dispatch the order now."
@@ -290,10 +294,13 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
   // ------------------------------------------------------------------
   // Guard states
   // ------------------------------------------------------------------
-  if (authLoading || (fetching && !order)) {
+  if (authLoading) {
     return <LoadingState />
   }
 
+  // Before the fetching check: with no profile the order is never fetched, so
+  // "fetching" stays true and a signed-out visitor (a push link, an expired
+  // session) used to watch a spinner forever.
   if (!profile) {
     return (
       <ErrorState
@@ -301,6 +308,10 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         onBack={() => router.push("/orders")}
       />
     )
+  }
+
+  if (fetching && !order) {
+    return <LoadingState />
   }
 
   if (loadError) {
@@ -329,6 +340,10 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
   const activeVendor = vendorData?.vendor ?? order.vendor
   const vendorName = activeVendor?.storeName ?? "Vendor"
   const whatsappNumber = activeVendor?.whatsappNumber
+  // wa.me needs digits only, in international form. Raw numbers such as
+  // "+234 803..." or "0803..." opened WhatsApp's invalid-number page.
+  const sellerWhatsAppUrl = buildWhatsAppUrl(whatsappNumber)
+  const buyerWhatsAppUrl = buildWhatsAppUrl(order.buyer?.phone)
   const paymentMethodMeta = getPaymentMethodMeta(order.paymentMethod)
   const paymentStatusMeta = getPaymentStatusMeta(order.paymentStatus, order.paymentMethod)
   const orderStatusMeta = getOrderStatusMeta(order.status)
@@ -344,7 +359,10 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
     trackingUrl: order.trackingUrl
   })
 
-  const sellerCanConfirm = isSeller && order.status === "pending"
+  // Card orders confirm themselves when Paystack reports the payment. A manual
+  // Confirm on an unpaid one sent a pay-on-delivery status the server refuses.
+  const sellerCanConfirm =
+    isSeller && order.status === "pending" && order.paymentMethod !== "paystack"
   const sellerCanReject = isSeller && order.status === "pending"
   const sellerCanMarkPaid =
     isSeller &&
@@ -409,6 +427,31 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
           ))}
         </div>
 
+        {/* How it is getting there, and what that cost. The seller needs
+            this to know whether to book a rider, a park or international. */}
+        {order.deliveryOptionLabel || order.shippingMethod ? (
+          <div className="mt-5 flex items-start justify-between gap-3 rounded-2xl bg-canvas p-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-muted">Delivery</p>
+              <p className="mt-2 text-sm font-semibold text-ink">
+                {order.deliveryOptionLabel ??
+                  (order.shippingMethod === "pickup"
+                    ? "Pickup"
+                    : order.shippingMethod === "courier"
+                      ? "International delivery"
+                      : "Local delivery")}
+              </p>
+            </div>
+            <p className="mt-6 text-sm font-semibold text-ink">
+              {order.deliveryFee && order.deliveryFee > 0
+                ? formatCurrency(order.deliveryFee)
+                : order.shippingMethod === "courier"
+                  ? "To be confirmed"
+                  : "Free"}
+            </p>
+          </div>
+        ) : null}
+
         {/* Drop-off location */}
         {buyerCanEditDelivery || order.deliveryAddress ? (
           <div className="mt-5 rounded-2xl bg-canvas p-4">
@@ -462,9 +505,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         </div>
 
         {/* WhatsApp: buyer chats seller */}
-        {isBuyer && whatsappNumber ? (
+        {isBuyer && sellerWhatsAppUrl ? (
           <a
-            href={`https://wa.me/${whatsappNumber}`}
+            href={sellerWhatsAppUrl}
             target="_blank"
             rel="noreferrer"
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-whatsapp/25 bg-surface px-4 py-3 text-sm font-semibold text-whatsapp"
@@ -475,9 +518,9 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         ) : null}
 
         {/* WhatsApp: seller chats buyer */}
-        {isSeller && order.buyer?.phone ? (
+        {isSeller && buyerWhatsAppUrl ? (
           <a
-            href={`https://wa.me/${order.buyer.phone}`}
+            href={buyerWhatsAppUrl}
             target="_blank"
             rel="noreferrer"
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-whatsapp/25 bg-surface px-4 py-3 text-sm font-semibold text-whatsapp"
@@ -499,7 +542,13 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
         <div className="mt-4 rounded-2xl bg-canvas p-4">
           {isBuyer ? (
             <>
-              {order.paymentMethod === "pay_on_delivery" ? (
+              {order.paymentMethod === "paystack" ? (
+                <p className="text-sm leading-6 text-ink">
+                  {order.paymentStatus === "paid_by_card"
+                    ? "Paid by card through Paystack. There is nothing more to pay."
+                    : "Your card payment has not cleared yet. If you were charged, this updates by itself shortly. Do not pay again."}
+                </p>
+              ) : order.paymentMethod === "pay_on_delivery" ? (
                 <p className="text-sm leading-6 text-ink">
                   This seller will collect cash or transfer when the order arrives.
                   Inspect it first before paying.
@@ -538,7 +587,11 @@ export function OrderDetailClient({ orderId }: { orderId: string }) {
             </>
           ) : (
             <p className="text-sm leading-6 text-ink">
-              {order.paymentMethod === "pay_on_delivery"
+              {order.paymentMethod === "paystack"
+                ? order.paymentStatus === "paid_by_card"
+                  ? "The buyer paid by card through Paystack. Get the order ready to ship."
+                  : "The buyer has not finished paying by card. Do not ship until this shows as paid."
+                : order.paymentMethod === "pay_on_delivery"
                 ? "The buyer will pay when the order arrives."
                 : order.paymentStatus === "paid_to_vendor"
                   ? "You already marked the buyer's direct payment as received."

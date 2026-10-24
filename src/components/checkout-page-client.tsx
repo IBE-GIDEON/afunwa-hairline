@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import toast from "react-hot-toast"
 import { FiCheck, FiChevronRight, FiMapPin } from "react-icons/fi"
 
@@ -61,6 +61,19 @@ export function CheckoutPageClient() {
   // The Nigerian option the buyer picked. Empty means the first one offered.
   const [deliveryOptionId, setDeliveryOptionId] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  // Set on the first tap, before anything is awaited. State lands a render
+  // late, so a quick second tap used to slip through and place a second order.
+  const submittingRef = useRef(false)
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+      submittingRef.current = false
+      setSubmitting(false)
+    }
+    window.addEventListener("pageshow", onPageShow)
+    return () => window.removeEventListener("pageshow", onPageShow)
+  }, [])
   // Admin delivery options and country prices. Null until they arrive.
   const [deliveryOptions, setDeliveryOptions] = useState<DeliveryOption[] | null>(null)
   const [deliveryPrices, setDeliveryPrices] = useState<DeliveryPrices | null>(null)
@@ -69,7 +82,14 @@ export function CheckoutPageClient() {
 
   // A returning buyer should land on delivery, not retype an address they have
   // already given us. Their profile seeds the blank form on a first visit.
+  // The account the form was last seeded for. undefined means not yet.
+  const seededForRef = useRef<string | null | undefined>(undefined)
+
   useEffect(() => {
+    const seedKey = profile?.id ?? null
+    if (seededForRef.current === seedKey) return
+    seededForRef.current = seedKey
+
     const stored = loadSavedAddress()
     if (stored) {
       setAddress(stored)
@@ -102,7 +122,11 @@ export function CheckoutPageClient() {
 
   useEffect(() => {
     if (!vendorId) return
-    loadVendorDetail(vendorId).then(setVendorData)
+    // Straight from the network: a cached copy could show a price the server
+    // will not charge, after a recent edit.
+    loadVendorDetail(vendorId, true)
+      .then(setVendorData)
+      .catch(() => undefined)
   }, [vendorId])
 
   const productMap = useMemo(
@@ -148,7 +172,8 @@ export function CheckoutPageClient() {
   const isAbroad = isAbroadAddress(savedAddress?.country)
   const pricesReady = deliveryPrices !== null && deliveryOptions !== null
   const activeDeliveryOptions = activeOptions(deliveryOptions ?? [])
-  const optionId = deliveryOptionId || activeDeliveryOptions[0]?.id || ""
+  // Nigeria: the buyer picks their area. Nothing is chosen for them.
+  const optionId = deliveryOptionId
   // The same rule priceCart uses on the server, so the figure shown is the figure charged.
   const choice = pricesReady
     ? resolveDelivery({
@@ -182,6 +207,7 @@ export function CheckoutPageClient() {
   const canConfirm =
     Boolean(savedAddress) &&
     pricesReady &&
+    Boolean(choice) &&
     deliveryConfirmed &&
     !submitting
 
@@ -223,12 +249,20 @@ export function CheckoutPageClient() {
     // Onto the account too, so the next device already knows it. Best effort:
     // the local copy and the order itself both carry it regardless.
     if (profile) void saveBuyerDeliveryAddress(profile.id, normalized)
+    // A new address can mean a new area: Lagos Island chosen for a Lekki
+    // address must not carry over to an Abuja one.
+    if (JSON.stringify(normalized) !== JSON.stringify(savedAddress)) {
+      setDeliveryOptionId("")
+      setDeliveryConfirmed(false)
+    }
     setAddress(normalized)
     setSavedAddress(normalized)
     setStep(2)
   }
 
   const confirmOrder = async () => {
+    if (submittingRef.current) return
+
     if (!savedAddress) {
       toast.error("Save your delivery address first.")
       setStep(1)
@@ -241,72 +275,82 @@ export function CheckoutPageClient() {
       return
     }
 
-    // The seller reaches the buyer on this number, so keep the profile in step
-    // with whatever they just typed into the address form.
-    if (savedAddress.phone && profile.phone?.trim() !== savedAddress.phone) {
-      try {
-        await saveUserProfile({ ...profile, phone: savedAddress.phone })
-        await refreshProfile(profile.id)
-      } catch {
-        // Not worth blocking the order: the number is in the address line too.
-      }
-    }
-
-    const payload = {
-      buyerId: profile.id,
-      vendorId: vendorId as string,
-      items,
-      // The server re-prices this and ignores the figure; send the live one so
-      // an order sitting in the offline queue holds something honest.
-      totalAmount: orderTotal,
-      deliveryAddress: composeDeliveryAddress(savedAddress),
-      shippingMethod,
-      deliveryOptionId: optionId,
-      // The country decides the delivery rule, so it is sent with the order.
-      shippingDestination: {
-        countryCode: savedAddress.country,
-        city: savedAddress.city,
-        region: savedAddress.region,
-        addressLine: savedAddress.address,
-        name: getFullName(savedAddress) || profile.fullName,
-        email: profile.email,
-        phone: savedAddress.phone || profile.phone
-      },
-      paymentMethod
-    }
-
-    const isHostedCheckout = paymentMethod === "paystack"
-
-    if (!navigator.onLine && isHostedCheckout) {
-      toast.error("Card checkout needs a connection. Pick bank transfer to queue this order.")
-      return
-    }
-
-    if (!navigator.onLine) {
-      await queueOfflineOrder(payload)
-      clearCart()
-      toast.success("Order queued. We'll sync it once you're back online.")
-      router.push("/orders")
-      return
-    }
-
+    submittingRef.current = true
     setSubmitting(true)
+    // Stays true once the page is leaving for Paystack or the confirmation, so
+    // the button cannot be pressed again on the way out.
+    let leaving = false
+
     try {
+      // The seller reaches the buyer on this number, so keep the profile in step
+      // with whatever they just typed into the address form.
+      if (savedAddress.phone && profile.phone?.trim() !== savedAddress.phone) {
+        try {
+          await saveUserProfile({ ...profile, phone: savedAddress.phone })
+          await refreshProfile(profile.id)
+        } catch {
+          // Not worth blocking the order: the number is in the address line too.
+        }
+      }
+
+      const payload = {
+        buyerId: profile.id,
+        vendorId: vendorId as string,
+        items,
+        // The server re-prices this and ignores the figure; send the live one so
+        // an order sitting in the offline queue holds something honest.
+        totalAmount: orderTotal,
+        deliveryAddress: composeDeliveryAddress(savedAddress),
+        shippingMethod,
+        deliveryOptionId: optionId,
+        // The country decides the delivery rule, so it is sent with the order.
+        shippingDestination: {
+          countryCode: savedAddress.country,
+          city: savedAddress.city,
+          region: savedAddress.region,
+          addressLine: savedAddress.address,
+          name: getFullName(savedAddress) || profile.fullName,
+          email: profile.email,
+          phone: savedAddress.phone || profile.phone
+        },
+        paymentMethod
+      }
+
+      const isHostedCheckout = paymentMethod === "paystack"
+
+      if (!navigator.onLine) {
+        if (isHostedCheckout) {
+          toast.error("Card checkout needs a connection. Reconnect and try again.")
+          return
+        }
+        await queueOfflineOrder(payload)
+        clearCart()
+        toast.success("Order queued. We'll send it once you're back online.")
+        leaving = true
+        router.push("/orders")
+        return
+      }
+
       if (isHostedCheckout) {
         const { checkoutUrl } = await startCardCheckout(payload)
         // Cart deliberately left alone: an abandoned card page should not cost
-        // the buyer their basket.
+        // the buyer their basket. The confirmation page empties it once paid.
+        leaving = true
         window.location.href = checkoutUrl
         return
       }
 
       const response = await placeOrder(payload)
       clearCart()
+      leaving = true
       router.push(`/order-confirmation/${response.orderId}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not place order.")
     } finally {
-      setSubmitting(false)
+      if (!leaving) {
+        submittingRef.current = false
+        setSubmitting(false)
+      }
     }
   }
 
@@ -462,6 +506,7 @@ export function CheckoutPageClient() {
 
                 <div className="flex justify-end">
                   <Button
+                    disabled={!choice}
                     onClick={() => {
                       setDeliveryConfirmed(true)
                       setStep(3)
@@ -583,6 +628,7 @@ export function CheckoutPageClient() {
           isAbroad={isAbroad}
           deliveryFee={deliveryFee}
           confirmLater={delivery.confirmLater}
+          deliveryChosen={Boolean(choice)}
           total={orderTotal}
           money={money}
           canConfirm={canConfirm}
@@ -847,6 +893,7 @@ function OrderSummary({
   isAbroad,
   deliveryFee,
   confirmLater,
+  deliveryChosen,
   total,
   money,
   canConfirm,
@@ -859,6 +906,8 @@ function OrderSummary({
   isAbroad: boolean
   deliveryFee: number
   confirmLater: boolean
+  /** False until a Nigerian buyer has picked an area. */
+  deliveryChosen: boolean
   total: number
   money: (amount: number) => { text: string }
   canConfirm: boolean
@@ -882,10 +931,16 @@ function OrderSummary({
           <span
             className={cn(
               "font-semibold",
-              confirmLater ? "text-muted" : deliveryFee > 0 ? "text-ink" : "text-success"
+              !deliveryChosen || confirmLater
+                ? "text-muted"
+                : deliveryFee > 0
+                  ? "text-ink"
+                  : "text-success"
             )}
           >
-            {confirmLater
+            {!deliveryChosen
+              ? "Choose delivery"
+              : confirmLater
               ? "To be confirmed"
               : deliveryFee > 0
                 ? money(deliveryFee).text

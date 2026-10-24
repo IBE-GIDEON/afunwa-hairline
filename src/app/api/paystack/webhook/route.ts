@@ -59,8 +59,16 @@ export async function POST(request: Request) {
   // Ask Paystack what actually happened rather than believing the body.
   const verified = await verifyPaystackTransaction(reference)
 
-  if (!verified || verified.status !== "success") {
-    console.error(`Paystack verify failed for order ${order.id}`)
+  if (!verified) {
+    // Paystack could not be reached or answered with an error. Not a verdict on
+    // the payment: answer 500 so Paystack retries, rather than acknowledging
+    // and leaving a charged buyer marked unpaid for good.
+    console.error(`Paystack verify unavailable for order ${order.id}`)
+    return NextResponse.json({ error: "Verify unavailable" }, { status: 500 })
+  }
+
+  if (verified.status !== "success") {
+    console.error(`Paystack reports ${verified.status} for order ${order.id}`)
     return NextResponse.json({ ok: true })
   }
 
@@ -79,8 +87,19 @@ export async function POST(request: Request) {
     .from("orders")
     .update({
       payment_status: "paid_by_card",
-      // Money is in, so the seller is packing rather than deciding.
-      status: order.status === "pending" ? "confirmed" : order.status
+      // Money is in, so the seller is packing rather than deciding. A payment
+      // that lands after the order was cancelled (the buyer was still on the
+      // Paystack page) brings it back, so the seller ships or refunds rather
+      // than the buyer paying for an order nobody can see.
+      status:
+        order.status === "pending" || order.status === "cancelled"
+          ? "confirmed"
+          : order.status,
+      // A cancelled order may have been hidden from the lists. A paid one must
+      // show again, or the seller is told it is back but cannot find it.
+      ...(order.status === "cancelled"
+        ? { seller_hidden_at: null, buyer_hidden_at: null }
+        : {})
     })
     .eq("id", order.id)
     .neq("payment_status", "paid_by_card")
@@ -101,7 +120,10 @@ export async function POST(request: Request) {
     await sendPushNotification({
       userId: vendorUserId,
       title: "Paid order on Afunwa",
-      body: "A buyer just paid. Get it ready to ship.",
+      body:
+        order.status === "cancelled"
+          ? "A cancelled order was just paid. It is back in your orders: ship it or refund the buyer."
+          : "A buyer just paid. Get it ready to ship.",
       url: `/orders/${order.id}`
     })
   }

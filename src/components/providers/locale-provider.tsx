@@ -1,5 +1,6 @@
 "use client"
 
+import { safeLocalStorage } from "@/lib/safe-storage"
 import {
   createContext,
   useCallback,
@@ -64,7 +65,7 @@ function readCachedRates(): CachedRates | null {
   if (typeof window === "undefined") return null
 
   try {
-    const raw = window.localStorage.getItem(RATES_CACHE_KEY)
+    const raw = safeLocalStorage.getItem(RATES_CACHE_KEY)
     if (!raw) return null
 
     const parsed = JSON.parse(raw) as CachedRates
@@ -112,14 +113,14 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
       setLocale(browserLocale)
     }
 
-    const savedLanguage = window.localStorage.getItem(LANGUAGE_KEY)
+    const savedLanguage = safeLocalStorage.getItem(LANGUAGE_KEY)
     setLanguageState(
       savedLanguage && SUPPORTED_LANGUAGES.has(savedLanguage)
         ? savedLanguage
         : resolveLanguage(browserLocale)
     )
 
-    const savedCurrency = window.localStorage.getItem(CURRENCY_KEY)
+    const savedCurrency = safeLocalStorage.getItem(CURRENCY_KEY)
     setCurrencyState(
       savedCurrency && SUPPORTED_CURRENCY_CODES.has(savedCurrency)
         ? savedCurrency
@@ -158,7 +159,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
 
         const nextRates = payload.rates ?? null
         setRates(nextRates)
-        window.localStorage.setItem(
+        safeLocalStorage.setItem(
           RATES_CACHE_KEY,
           JSON.stringify({ rates: nextRates, fetchedAt: Date.now() })
         )
@@ -175,13 +176,13 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = useCallback((next: string) => {
     if (!SUPPORTED_LANGUAGES.has(next)) return
     setLanguageState(next)
-    window.localStorage.setItem(LANGUAGE_KEY, next)
+    safeLocalStorage.setItem(LANGUAGE_KEY, next)
   }, [])
 
   const setCurrency = useCallback((next: string) => {
     if (!SUPPORTED_CURRENCY_CODES.has(next)) return
     setCurrencyState(next)
-    window.localStorage.setItem(CURRENCY_KEY, next)
+    safeLocalStorage.setItem(CURRENCY_KEY, next)
   }, [])
 
   const t = useCallback(

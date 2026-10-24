@@ -1,5 +1,6 @@
 "use client"
 
+import { safeSessionStorage } from "@/lib/safe-storage"
 import { useEffect, useState } from "react"
 
 const SESSION_KEY = "glowgram-splash"
@@ -26,25 +27,41 @@ export function SplashScreen() {
   useEffect(() => {
     // Already shown this browser session — hide instantly (no flash because
     // the layout shell doesn't re-render on client-side navigation).
-    if (sessionStorage.getItem(SESSION_KEY)) {
+    if (safeSessionStorage.getItem(SESSION_KEY)) {
       setVisible(false)
       return
     }
-    sessionStorage.setItem(SESSION_KEY, "1")
+    safeSessionStorage.setItem(SESSION_KEY, "1")
 
     // First real load — fade out after the page finishes loading.
     function hide() {
       setVisible(false)
     }
 
+    // Never longer than this, however slow the page. Waiting for the load
+    // event alone kept the splash up while one slow image trickled in over
+    // mobile data, and the shopper saw only the logo.
+    const hardStop = setTimeout(hide, 1500)
+
     if (document.readyState === "complete") {
       const t = setTimeout(hide, 300)
-      return () => clearTimeout(t)
+      return () => {
+        clearTimeout(t)
+        clearTimeout(hardStop)
+      }
     }
 
-    window.addEventListener("load", function onLoad() {
-      setTimeout(hide, 300)
-    }, { once: true })
+    let afterLoad: ReturnType<typeof setTimeout> | undefined
+    function onLoad() {
+      afterLoad = setTimeout(hide, 300)
+    }
+    window.addEventListener("load", onLoad, { once: true })
+
+    return () => {
+      window.removeEventListener("load", onLoad)
+      if (afterLoad) clearTimeout(afterLoad)
+      clearTimeout(hardStop)
+    }
   }, [])
 
   if (!visible) return null
@@ -60,7 +77,10 @@ export function SplashScreen() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        pointerEvents: "none"
+        pointerEvents: "none",
+        // If the page's JavaScript never runs (a failed download, an old
+        // browser), nothing above can hide this. CSS can: it fades itself out.
+        animation: "afunwa-splash-out 0.4s ease 2.5s forwards"
       }}
       // Tailwind dark-mode classes — html[class=dark] is set by themeScript
       // before this element paints, so the correct colour shows on first frame.

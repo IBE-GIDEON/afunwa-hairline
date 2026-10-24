@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function LoginPage({
   searchParams
 }: {
-  searchParams?: { next?: string }
+  searchParams?: { next?: string | string[] }
 }) {
   return (
     <AuthRouteClient mode="signin" next={safeInternalPath(searchParams?.next)} />
