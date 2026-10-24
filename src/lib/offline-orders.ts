@@ -54,7 +54,39 @@ export async function queueOfflineOrder(payload: CheckoutPayload) {
   }
 }
 
-export async function flushOfflineOrders() {
+/** The flush running in this tab, if any. */
+let flushInProgress: Promise<void> | null = null
+
+/**
+ * Sends queued offline orders, one flush at a time.
+ *
+ * Reconnecting fires both the browser's "online" event and the service
+ * worker's sync message, often in several tabs at once. Each used to read the
+ * same queue and post every entry, so one offline order arrived two or three
+ * times. A Web Lock covers every tab; where the browser has none, a promise
+ * covers this tab. A flush that finds one already running steps aside, since
+ * that one sends everything.
+ */
+export async function flushOfflineOrders(): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.locks?.request) {
+    await navigator.locks.request(
+      "afunwa-offline-order-flush",
+      { ifAvailable: true },
+      async (lock) => {
+        if (lock) await flushQueueOnce()
+      }
+    )
+    return
+  }
+
+  if (flushInProgress) return flushInProgress
+  flushInProgress = flushQueueOnce().finally(() => {
+    flushInProgress = null
+  })
+  return flushInProgress
+}
+
+async function flushQueueOnce() {
   // /api/orders/sync requires a bearer token. Without one every queued order
   // answered 401 and stayed in the queue forever, so an order placed offline
   // never reached the seller and the buyer was never told.

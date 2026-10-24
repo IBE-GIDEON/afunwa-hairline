@@ -2083,6 +2083,23 @@ export async function loadSellerOrders(
     .filter((r) => !hiddenIds.has(String(r.id)))
     .map((r) => mapOrder(r, vendor))
 
+  // 3. Buyers' names in one query, so the seller can tell orders apart. Every
+  //    row used to read "Customer order". Best effort: no names, no failure.
+  const buyerIds = [...new Set(orders.map((order) => order.buyerId).filter(Boolean))]
+  if (buyerIds.length > 0) {
+    const { data: buyerRows } = await supabase
+      .from("users")
+      .select("id, full_name, phone, profile_photo_url, email, account_type, created_at")
+      .in("id", buyerIds)
+    const buyersById = new Map(
+      (buyerRows ?? []).map((row) => [String(row.id), mapUser(row as Record<string, unknown>)])
+    )
+    for (const order of orders) {
+      const buyer = buyersById.get(order.buyerId)
+      if (buyer) order.buyer = buyer
+    }
+  }
+
   return writeHybridCache(
     sellerOrdersCache,
     userId,
@@ -2227,7 +2244,7 @@ export async function loadStoreAnalytics(userId: string): Promise<StoreAnalytics
 
     const { data, error } = await supabase
       .from("orders")
-      .select("id, total_amount, status")
+      .select("id, total_amount, status, payment_status")
       .eq("vendor_id", vendor.id)
 
     if (error || !data) {
@@ -2241,9 +2258,16 @@ export async function loadStoreAnalytics(userId: string): Promise<StoreAnalytics
       userId,
       persistedCacheKeys.storeAnalytics(userId),
       {
-        totalOrders: data.length,
+        // A card checkout the buyer never paid is not an order or revenue.
+        totalOrders: data.filter(
+          (order) => String(order.payment_status) !== "awaiting_card_payment"
+        ).length,
         totalRevenue: data
-          .filter((order) => String(order.status) !== "cancelled")
+          .filter(
+            (order) =>
+              String(order.status) !== "cancelled" &&
+              String(order.payment_status) !== "awaiting_card_payment"
+          )
           .reduce((sum, order) => sum + Number(order.total_amount ?? 0), 0),
         averageRating: vendor.rating
       }
@@ -2347,6 +2371,12 @@ export async function loadUserProfile(userId: string) {
   })
 }
 
+/** Forget a cached profile, so the next read comes from the database. */
+export function clearUserProfileCache(userId: string) {
+  deletePersistedCache(persistedCacheKeys.userProfile(userId))
+  userProfileCache.delete(userId)
+}
+
 export async function saveUserProfile(input: UserProfile) {
   if (!hasSupabase) {
     if (canUseDemoMode) {
@@ -2415,10 +2445,13 @@ export async function saveSellerProfile(
         bio: input.bio,
         city: input.city,
         whatsapp_number: input.whatsappNumber,
-        bank_name: input.bankName,
-        account_name: input.accountName,
-        account_number: input.accountNumber,
-        payment_note: input.paymentNote,
+        // Null, not undefined, for an emptied field. Undefined is left out of
+        // the request, so the old account number stayed and buyers kept
+        // seeing it after the seller had removed it.
+        bank_name: input.bankName?.trim() || null,
+        account_name: input.accountName?.trim() || null,
+        account_number: input.accountNumber?.trim() || null,
+        payment_note: input.paymentNote?.trim() || null,
         is_active: true
       },
       // Conflict on user_id, not on the primary key. No id is sent here, so

@@ -14,6 +14,7 @@ import toast from "react-hot-toast"
 import { AUTH_SNAPSHOT_KEY, DEMO_USER_KEY } from "@/lib/constants"
 import { canUseDemoMode, env } from "@/lib/env"
 import {
+  clearUserProfileCache,
   findOrCreateDemoUser,
   loadUserProfile,
   loadVendorProfile,
@@ -583,6 +584,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error
       }
 
+      // The cached profile still says the old type. Left in place, the
+      // refresh that follows read it back, and a new seller lost Edit Store
+      // and Manage Products for up to ten minutes.
+      clearUserProfileCache(sessionUserId)
       setProfile((current) =>
         current ? { ...current, accountType: nextType } : current
       )

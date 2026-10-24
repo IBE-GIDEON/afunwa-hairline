@@ -136,8 +136,20 @@ export function AdminDeliveryClient() {
   }
 
   async function save() {
-    if (!token) return
     setMessage(null)
+
+    // The login token from when the page opened expires after about an hour,
+    // and saving then failed with "Sign in first", losing every edit. Ask for
+    // the current one each time; Supabase refreshes it if needed.
+    const supabase = getSupabaseBrowserClient()
+    const {
+      data: { session }
+    } = (await supabase?.auth.getSession()) ?? { data: { session: null } }
+    const currentToken = session?.access_token ?? token
+    if (!currentToken) {
+      setMessage({ tone: "error", text: "Your login has expired. Sign in again, then save." })
+      return
+    }
 
     const prices: Record<string, number | null> = {}
     for (const country of COUNTRIES) {
@@ -166,7 +178,14 @@ export function AdminDeliveryClient() {
         setMessage({ tone: "error", text: "Every delivery option needs a name." })
         return
       }
-      const fee = Number(option.fee.trim() === "" ? 0 : option.fee)
+      // Pickup is always free, whatever is stored. Every other option needs a
+      // real fee: a blank box used to save as ₦0, which is free delivery.
+      const isPickup = option.id === "pickup"
+      if (!isPickup && option.fee.trim() === "") {
+        setMessage({ tone: "error", text: `Enter a fee for ${option.label}, or switch it off.` })
+        return
+      }
+      const fee = isPickup ? 0 : Number(option.fee)
       if (!Number.isFinite(fee) || fee < 0) {
         setMessage({ tone: "error", text: `Enter a valid fee for ${option.label}.` })
         return
@@ -185,7 +204,7 @@ export function AdminDeliveryClient() {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${currentToken}`
       },
       body: JSON.stringify({ prices, options: optionPayload })
     }).catch(() => null)
@@ -289,16 +308,20 @@ export function AdminDeliveryClient() {
                     onChange={(event) => updateOption(option.id, { detail: event.target.value })}
                     className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/40"
                   />
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="0.01"
-                    aria-label={`Fee for ${option.label}`}
-                    value={option.fee}
-                    onChange={(event) => updateOption(option.id, { fee: event.target.value })}
-                    className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/40"
-                  />
+                  {option.id === "pickup" ? (
+                    <span className="px-3 py-2 text-sm font-semibold text-success">Free</span>
+                  ) : (
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      aria-label={`Fee for ${option.label}`}
+                      value={option.fee}
+                      onChange={(event) => updateOption(option.id, { fee: event.target.value })}
+                      className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-brand/40"
+                    />
+                  )}
                   <label className="flex items-center gap-2 text-sm text-ink">
                     <input
                       type="checkbox"

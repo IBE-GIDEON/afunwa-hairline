@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function SignUpPage({
   searchParams
 }: {
-  searchParams?: { next?: string }
+  searchParams?: { next?: string | string[] }
 }) {
   return (
     <AuthRouteClient mode="signup" next={safeInternalPath(searchParams?.next)} />

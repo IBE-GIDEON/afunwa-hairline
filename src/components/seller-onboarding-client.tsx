@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"
 import { FiTrash2 } from "react-icons/fi"
 
@@ -53,6 +53,44 @@ export function SellerOnboardingClient() {
   const [accountName, setAccountName] = useState(vendorProfile?.accountName ?? "")
   const [accountNumber, setAccountNumber] = useState(vendorProfile?.accountNumber ?? "")
   const [paymentNote, setPaymentNote] = useState(vendorProfile?.paymentNote ?? "")
+
+  // The form starts from whatever store data is on hand at first render: none
+  // yet, or an older copy saved on this device. Saving that wrote stale values
+  // over newer ones. When fresher data arrives, take it, unless the seller has
+  // already started typing.
+  const seededFromRef = useRef(vendorProfile)
+  useEffect(() => {
+    if (!vendorProfile || vendorProfile === seededFromRef.current) return
+    const previous = seededFromRef.current
+    seededFromRef.current = vendorProfile
+
+    const untouched =
+      storeName === (previous?.storeName ?? "") &&
+      category === (previous?.category ?? "wigs") &&
+      storePhotoUrl === (previous?.storePhotoUrl ?? "") &&
+      bio === (previous?.bio ?? "") &&
+      city === (previous?.city ?? "") &&
+      whatsappNumber === (previous?.whatsappNumber || profile?.phone || "+234") &&
+      bankName === (previous?.bankName ?? "") &&
+      accountName === (previous?.accountName ?? "") &&
+      accountNumber === (previous?.accountNumber ?? "") &&
+      paymentNote === (previous?.paymentNote ?? "")
+    if (!untouched) return
+
+    setStoreName(vendorProfile.storeName ?? "")
+    setCategory(vendorProfile.category ?? "wigs")
+    setStorePhotoUrl(vendorProfile.storePhotoUrl ?? "")
+    setBio(vendorProfile.bio ?? "")
+    setCity(vendorProfile.city ?? "")
+    setWhatsappNumber(vendorProfile.whatsappNumber || profile?.phone || "+234")
+    setBankName(vendorProfile.bankName ?? "")
+    setAccountName(vendorProfile.accountName ?? "")
+    setAccountNumber(vendorProfile.accountNumber ?? "")
+    setPaymentNote(vendorProfile.paymentNote ?? "")
+    // Runs only when the store data itself changes; the form values are read
+    // to tell whether the seller has typed, not to re-run on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorProfile])
   const [productName, setProductName] = useState("")
   const [productCategory, setProductCategory] = useState<ProductCategory>(
     DEFAULT_PRODUCT_CATEGORY
@@ -393,7 +431,7 @@ export function SellerOnboardingClient() {
                     return
                   }
 
-                  if (!Number(productPrice)) {
+                  if (!(Number(productPrice) > 0)) {
                     toast.error("Enter a valid product price.")
                     return
                   }
@@ -413,10 +451,10 @@ export function SellerOnboardingClient() {
                     bio: bio.trim(),
                     city: city.trim(),
                     whatsappNumber: whatsappNumber.trim(),
-                    bankName: bankName.trim() || undefined,
-                    accountName: accountName.trim() || undefined,
-                    accountNumber: accountNumber.trim() || undefined,
-                    paymentNote: paymentNote.trim() || undefined,
+                    bankName: bankName.trim(),
+                    accountName: accountName.trim(),
+                    accountNumber: accountNumber.trim(),
+                    paymentNote: paymentNote.trim(),
                   })
 
                   if (savingProduct) {

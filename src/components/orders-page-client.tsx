@@ -93,7 +93,11 @@ export function OrdersPageClient() {
     }
 
     const signal = { cancelled: false }
-    void fetchOrders(signal)
+    // The saved copy first, so the list appears at once, then the real list.
+    // The saved copy alone could hide a new order for up to ten minutes.
+    void fetchOrders(signal).then(() => {
+      if (!signal.cancelled) void fetchOrders(signal, { silent: true, fresh: true })
+    })
     return () => {
       signal.cancelled = true
     }

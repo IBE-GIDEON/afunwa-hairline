@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import toast from "react-hot-toast"
 import { FiShare2, FiTrash2 } from "react-icons/fi"
 
@@ -85,7 +85,12 @@ export function ProductManagementClient() {
     [editingProduct]
   )
 
+  // Bumped every time the editor opens. An upload that finishes after the
+  // seller has moved to another product is dropped, not added to it.
+  const editorSessionRef = useRef(0)
+
   const openProductEditor = (product?: Product | null) => {
+    editorSessionRef.current += 1
     setEditingProduct(product ?? null)
     setForm(
       product
@@ -120,10 +125,12 @@ export function ProductManagementClient() {
     }
 
     const selectedFiles = Array.from(fileList).slice(0, remainingSlots)
+    const session = editorSessionRef.current
     setUploadingImages(true)
 
     try {
       const { urls: nextUrls, failed } = await uploadImages(selectedFiles, "product-photos")
+      if (editorSessionRef.current !== session) return
       if (nextUrls.length > 0) {
         setForm((current) => ({
           ...current,
@@ -439,7 +446,7 @@ export function ProductManagementClient() {
                 return
               }
 
-              if (!Number(form.price)) {
+              if (!(Number(form.price) > 0)) {
                 toast.error("Enter a valid product price.")
                 return
               }
@@ -493,7 +500,17 @@ export function ProductManagementClient() {
             <Button
               variant="outline"
               className="w-full"
+              disabled={saving}
               onClick={async () => {
+                // One tap used to delete for good, right under Save.
+                if (
+                  !window.confirm(
+                    `Delete "${editingProduct.name}"? This cannot be undone.`
+                  )
+                ) {
+                  return
+                }
+                setSaving(true)
                 try {
                   await deleteProduct(editingProduct.id)
                   toast.success("Product deleted.")
@@ -505,6 +522,8 @@ export function ProductManagementClient() {
                   toast.error(
                     error instanceof Error ? error.message : "Could not delete product."
                   )
+                } finally {
+                  setSaving(false)
                 }
               }}
             >
